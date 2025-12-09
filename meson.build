@@ -96,7 +96,7 @@ if get_option('debug') and optimization in ['0', 'g']
     '-DG_ENABLE_DEBUG',
     '-DXFDASHBOARD_ENABLE_DEBUG'
   ]
-elif optimization in ['3', 'minsize']
+elif optimization in ['3', 's']
   extra_cflags += [
     '-DNDEBUG',
     '-DG_DISABLE_CAST_CHECKS',
