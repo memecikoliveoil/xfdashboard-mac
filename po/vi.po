@@ -1,0 +1,764 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Xfce
+# This file is distributed under the same license as the xfce-apps.xfdashboard package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# Duy Truong Nguyen <truongap.ars@gmail.com>, 2020
+# Nick Schermer <nick@xfce.org>, 2021
+# Xfce Bot <transifex@xfce.org>, 2024
+# Loc Huynh, 2025
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: xfce-apps.xfdashboard\n"
+"Report-Msgid-Bugs-To: https://gitlab.xfce.org/\n"
+"POT-Creation-Date: 2024-06-23 12:51+0200\n"
+"PO-Revision-Date: 2020-10-07 10:59+0000\n"
+"Last-Translator: Loc Huynh, 2025\n"
+"Language-Team: Vietnamese (https://app.transifex.com/xfce/teams/16840/vi/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: vi\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: data/org.xfce.xfdashboard.desktop.in.in:4
+#: data/org.xfce.xfdashboard.desktop.in.in:6
+#: data/org.xfce.xfdashboard-autostart.desktop.in.in:4
+msgid "Xfdashboard"
+msgstr "Xfdashboard"
+
+#: data/org.xfce.xfdashboard.desktop.in.in:5
+#: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:7
+msgid "Maybe a Gnome shell like dashboard for Xfce"
+msgstr "Bảng điều khiển giống GNOME Shell cho Xfce"
+
+#: data/org.xfce.xfdashboard-autostart.desktop.in.in:5
+msgid "Start xfdashboard as daemon in background"
+msgstr "Khởi chạy Xfdashboard dưới dạng dịch vụ nền"
+
+#: data/org.xfce.xfdashboard-settings.desktop.in.in:5
+#: data/org.xfce.xfdashboard-settings.desktop.in.in:7
+msgid "Xfdashboard settings"
+msgstr "Cài đặt Xfdashboard"
+
+#: data/org.xfce.xfdashboard-settings.desktop.in.in:6
+msgid "Configure xfdashboard"
+msgstr "Cấu hình Xfdashboard"
+
+#: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:6
+#: data/themes/xfdashboard/xfdashboard.theme.desktop.in.in:3
+msgid "xfdashboard"
+msgstr "xfdashboard"
+
+#: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:10
+msgid ""
+"Xfdashboard provides a GNOME shell dashboard like interface for use with "
+"Xfce desktop."
+msgstr ""
+"Xfdashboard cung cấp giao diện bảng điều khiển giống GNOME Shell để sử dụng "
+"trên môi trường Xfce."
+
+#: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:13
+msgid ""
+"It can be configured to run to any keyboard shortcut and when executed "
+"provides an overview of applications currently open enabling the user to "
+"switch between different applications. The search feature works like Xfce's "
+"app finder which makes it convenient to search for and start applications."
+msgstr ""
+"Có thể gán bất kỳ phím tắt nào để mở. Khi chạy, Xfdashboard hiển thị tổng "
+"quan các ứng dụng đang mở, giúp chuyển đổi nhanh giữa chúng. Tính năng tìm "
+"kiếm hoạt động giống App Finder của Xfce, rất tiện để tìm và khởi chạy ứng "
+"dụng."
+
+#: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:26
+msgid "Browsing applications"
+msgstr "Duyệt ứng dụng"
+
+#: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:30
+msgid "Searching applications"
+msgstr "Tìm kiếm ứng dụng"
+
+#: data/data/preferences.ui:88
+msgid "<span size=\"large\"><b>Xfdashboard settings</b></span>"
+msgstr "<span size=\"large\"><b>Cài đặt Xfdashboard</b></span>"
+
+#: data/data/preferences.ui:103
+msgid "Configure plugin"
+msgstr "Cấu hình phần bổ sung"
+
+#: data/data/preferences.ui:177
+msgid ""
+"<span size=\"large\"><b>Xfdashboard settings</b></span>\n"
+"Configure xfdashboard"
+msgstr ""
+"<span size=\"large\"><b>Cài đặt Xfdashboard</b></span>\n"
+"Cấu hình Xfdashboard"
+
+#: data/data/preferences.ui:216
+msgid "<b>General settings:</b>"
+msgstr "<b>Cài đặt chung:</b>"
+
+#: data/data/preferences.ui:228
+msgid "Reset search view when resumed"
+msgstr "Đặt lại chế độ tìm kiếm khi tiếp tục"
+
+#: data/data/preferences.ui:232
+msgid ""
+"If enabled the search view will be resetted when xfdashboard is resumed. That means the active view is switched back to last view active before last search was started and search box will be emptied.\n"
+"\n"
+"<b>NOTE:</b> This setting only takes effect if xfdashboard is running in daemon mode. "
+msgstr ""
+"Nếu bật, chế độ tìm kiếm sẽ được đặt lại khi tiếp tục sử dụng Xfdashboard. Nghĩa là sẽ quay về giao diện cuối cùng trước khi tìm kiếm và ô tìm kiếm sẽ bị xóa.\n"
+"\n"
+"<b>Lưu ý:</b> Tùy chọn này chỉ có hiệu lực khi Xfdashboard chạy ở chế độ dịch vụ nền."
+
+#: data/data/preferences.ui:253 data/data/preferences.ui:270
+msgid ""
+"When xfdashboard resumes the selected view will be activated.\n"
+"\n"
+"<b>NOTE:</b> This setting only takes effect if xfdashboard is running in daemon mode."
+msgstr ""
+"Khi tiếp tục sử dụng Xfdashboard, giao diện đã chọn sẽ được kích hoạt.\n"
+"\n"
+"<b>Lưu ý:</b> Tùy chọn này chỉ có hiệu lực khi Xfdashboard chạy ở chế độ dịch vụ nền."
+
+#: data/data/preferences.ui:258
+msgid "Switch to view when resumed:"
+msgstr "Chuyển sang giao diện khi tiếp tục:"
+
+#: data/data/preferences.ui:295 data/data/preferences.ui:312
+msgid ""
+"Sets the minimum time a notification is being shown.\n"
+"\n"
+"The duration is calculated by the length of the text to show in notification. This setting allows you to specify how long the notification must be shown at least."
+msgstr ""
+"Đặt thời gian hiển thị tối thiểu cho thông báo.\n"
+"\n"
+"Thời lượng mặc định được tính dựa trên độ dài văn bản. Tùy chọn này cho phép bạn chỉ định thời gian hiển thị tối thiểu."
+
+#: data/data/preferences.ui:300
+msgid "Minimum notification timeout:"
+msgstr "Thời gian hiển thị thông báo tối thiểu:"
+
+#: data/data/preferences.ui:332
+msgid "Enable workaround for minimized windows"
+msgstr "Bật giải pháp tạm cho cửa sổ thu nhỏ"
+
+#: data/data/preferences.ui:336
+msgid ""
+"When enabled a workaround for minimized windows will be tried to get still images of these windows by restoring them shortly and minimizing them again.\n"
+"\n"
+"<b>NOTE:</b> Be aware that this is a <u>workaround</u> and your minimized windows could stay unminimized, change workspace etc."
+msgstr ""
+"Khi bật, sẽ dùng giải pháp tạm để lấy ảnh chụp của cửa sổ đã thu nhỏ bằng cách khôi phục ngắn rồi thu nhỏ lại.\n"
+"\n"
+"<b>Lưu ý:</b> Đây chỉ là <u>giải pháp tạm</u>, cửa sổ thu nhỏ có thể vẫn mở, chuyển không gian làm việc, v.v."
+
+#: data/data/preferences.ui:357 data/data/preferences.ui:372
+msgid ""
+"This value defines how fast the window content should be created. While the value 'immediate' tells xfdashboard to create the window content at the time it is requested, all other values will set up a queue and value defines how fast the queue will be processed.\n"
+"\n"
+"<b>NOTE:</b> Only change this value from 'immediate' to other value if your graphics card, driver or system is too slow to create the window contents immediately. You have to try each value to find the one fitting your system."
+msgstr ""
+"Giá trị này xác định tốc độ tạo nội dung cửa sổ. Giá trị “immediate” yêu cầu tạo ngay lập tức; các giá trị khác sẽ xếp hàng đợi và quyết định tốc độ xử lý.\n"
+"\n"
+"<b>Lưu ý:</b> Chỉ thay đổi nếu card đồ họa/driver/hệ thống quá chậm. Hãy thử từng giá trị để tìm mức phù hợp."
+
+#: data/data/preferences.ui:360
+msgid "Priority of window content creation"
+msgstr "Độ ưu tiên tạo nội dung cửa sổ"
+
+#: data/data/preferences.ui:391
+msgid "Show child windows in main windows"
+msgstr "Hiển thị cửa sổ con trong cửa sổ chính"
+
+#: data/data/preferences.ui:395
+msgid ""
+"When enabled all live window previews will also show their child windows. "
+"Disabling this option will increase performance on slower machines."
+msgstr ""
+"Khi bật, bản xem trước cửa sổ sẽ hiển thị cả cửa sổ con. Tắt tùy chọn này sẽ"
+" tăng hiệu suất trên máy yếu."
+
+#: data/data/preferences.ui:407
+msgid "Always start a new instance for application"
+msgstr "Luôn khởi chạy phiên bản mới của ứng dụng"
+
+#: data/data/preferences.ui:411
+msgid ""
+"When enabled and an icon in quicklaunch is clicked it will always start a new instance of the application.\n"
+"\n"
+"When not enabled it will select the last known active window of the running application instance. If application is not running, a new instance will be started."
+msgstr ""
+"Khi bật, nhấn biểu tượng trên thanh khởi nhanh sẽ luôn mở phiên bản mới.\n"
+"\n"
+"Khi tắt, sẽ chuyển đến cửa sổ đang chạy gần nhất của ứng dụng đó. Nếu chưa chạy, sẽ mở phiên bản mới."
+
+#: data/data/preferences.ui:425
+msgid "Enable animations"
+msgstr "Bật hiệu ứng động"
+
+#: data/data/preferences.ui:429
+msgid "If enabled theme-defined animations will be shown."
+msgstr "Nếu bật, sẽ hiển thị các hiệu ứng động do chủ đề định nghĩa."
+
+#: data/data/preferences.ui:444
+msgid "<b>Applications view:</b>"
+msgstr "<b>Giao diện ứng dụng:</b>"
+
+#: data/data/preferences.ui:456
+msgid "Show menu for all installed applications"
+msgstr "Hiển thị menu chứa tất cả ứng dụng đã cài"
+
+#: data/data/preferences.ui:460
+msgid ""
+"When enabled an \"all applications\" menu containing all installed "
+"applications will be shown at applications view"
+msgstr ""
+"Khi bật, sẽ hiển thị menu “Tất cả ứng dụng” chứa mọi ứng dụng đã cài đặt "
+"trong giao diện ứng dụng."
+
+#: data/data/preferences.ui:475
+msgid "<b>Windows view:</b>"
+msgstr "<b>Giao diện cửa sổ:</b>"
+
+#: data/data/preferences.ui:487
+msgid "Mouse wheel changes workspace"
+msgstr "Cuộn chuột để đổi không gian làm việc"
+
+#: data/data/preferences.ui:491
+msgid ""
+"When enabled any scroll event, like mouse-wheel up and down, at the windows "
+"view will change the active workspace. This behaviour is the same as in "
+"workspace selector."
+msgstr ""
+"Khi bật, cuộn chuột (lên/xuống) trong giao diện cửa sổ sẽ đổi không gian làm"
+" việc, giống bộ chọn không gian làm việc."
+
+#: data/data/preferences.ui:507
+msgid "<b>Search view:</b>"
+msgstr "<b>Giao diện tìm kiếm:</b>"
+
+#: data/data/preferences.ui:525 data/data/preferences.ui:538
+msgid ""
+"Sets the interval the search should be delayed by after the first character "
+"was entered."
+msgstr "Đặt độ trễ tìm kiếm sau khi gõ ký tự đầu tiên."
+
+#: data/data/preferences.ui:526
+msgid "Delay initial search interval:"
+msgstr "Độ trễ tìm kiếm ban đầu:"
+
+#: data/data/preferences.ui:563
+msgid "General"
+msgstr "Chung"
+
+#: data/data/preferences.ui:617 data/data/preferences.ui:844
+msgid "<b>Name:</b>"
+msgstr "<b>Tên:</b>"
+
+#: data/data/preferences.ui:641 data/data/preferences.ui:793
+msgid "<b>Author:</b>"
+msgstr "<b>Tác giả:</b>"
+
+#: data/data/preferences.ui:668 data/data/preferences.ui:819
+msgid "<b>Version:</b>"
+msgstr "<b>Phiên bản:</b>"
+
+#: data/data/preferences.ui:694 data/data/preferences.ui:870
+msgid "<b>Description:</b>"
+msgstr "<b>Mô tả:</b>"
+
+#: data/data/preferences.ui:740
+msgid "Themes"
+msgstr "Chủ đề"
+
+#: data/data/preferences.ui:857
+msgid "<b>License:</b>"
+msgstr "<b>Giấy phép:</b>"
+
+#: data/data/preferences.ui:942
+msgid "Plugins"
+msgstr "Phần bổ sung"
+
+#: data/themes/xfdashboard/xfdashboard.theme.desktop.in.in:4
+msgid "Default theme for xfdashboard"
+msgstr "Chủ đề mặc định cho Xfdashboard"
+
+#: data/themes/xfdashboard-auber/xfdashboard.theme.desktop.in.in:3
+msgid "xfdashboard-auber"
+msgstr "xfdashboard-auber"
+
+#: data/themes/xfdashboard-auber/xfdashboard.theme.desktop.in.in:4
+msgid "Aubergine theme for xfdashboard"
+msgstr "Chủ đề Aubergine cho Xfdashboard"
+
+#: data/themes/xfdashboard-blue/xfdashboard.theme.desktop.in.in:3
+msgid "xfdashboard-blue"
+msgstr "xfdashboard-blue"
+
+#: data/themes/xfdashboard-blue/xfdashboard.theme.desktop.in.in:4
+msgid "Blue theme for xfdashboard"
+msgstr "Chủ đề Xanh dương cho Xfdashboard"
+
+#: data/themes/xfdashboard-dark/xfdashboard.theme.desktop.in.in:3
+msgid "xfdashboard-dark"
+msgstr "xfdashboard-dark"
+
+#: data/themes/xfdashboard-dark/xfdashboard.theme.desktop.in.in:4
+msgid "Dark theme for xfdashboard"
+msgstr "Chủ đề Tối cho Xfdashboard"
+
+#: data/themes/xfdashboard-mint/xfdashboard.theme.desktop.in.in:3
+msgid "xfdashboard-mint"
+msgstr "xfdashboard-mint"
+
+#: data/themes/xfdashboard-mint/xfdashboard.theme.desktop.in.in:4
+msgid "Fresh-green flavored theme for xfdashboard"
+msgstr "Chủ đề Xanh bạc hà tươi mát cho Xfdashboard"
+
+#: data/themes/xfdashboard-moranga/xfdashboard.theme.desktop.in.in:3
+msgid "xfdashboard-moranga"
+msgstr "xfdashboard-moranga"
+
+#: data/themes/xfdashboard-moranga/xfdashboard.theme.desktop.in.in:4
+msgid "Moranga theme for xfdashboard"
+msgstr "Chủ đề Moranga cho xfdashboard"
+
+#: data/themes/xfdashboard-wine/xfdashboard.theme.desktop.in.in:3
+msgid "xfdashboard-wine"
+msgstr "xfdashboard-wine"
+
+#: data/themes/xfdashboard-wine/xfdashboard.theme.desktop.in.in:4
+msgid "Red wine theme for xfdashboard"
+msgstr "Chủ đề rượu vang đỏ cho xfdashboard"
+
+#: libxfdashboard/application-button.c:267
+#, c-format
+msgid "Could not execute action '%s' for application '%s': %s"
+msgstr "Không thể thực thi hành động '%s' cho ứng dụng '%s': %s"
+
+#: libxfdashboard/application-button.c:270 settings/main.c:74
+#: settings/plugins.c:794
+msgid "Unknown error"
+msgstr "Lỗi không xác định"
+
+#: libxfdashboard/application-button.c:287
+#, c-format
+msgid "Executed action '%s' for application '%s'"
+msgstr "Đã thực thi hành động '%s' cho ứng dụng '%s'"
+
+#: libxfdashboard/application-button.c:748
+#: libxfdashboard/application-button.c:766
+#: libxfdashboard/applications-search-provider.c:765
+#: libxfdashboard/applications-view.c:332 libxfdashboard/quicklaunch.c:334
+#: libxfdashboard/quicklaunch.c:382 libxfdashboard/quicklaunch.c:440
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:581
+#, c-format
+msgid "Launching application '%s' failed: %s"
+msgstr "Khởi chạy ứng dụng '%s' thất bại: %s"
+
+#: libxfdashboard/application-button.c:750 libxfdashboard/quicklaunch.c:336
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:499
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:520
+msgid "No information available for application"
+msgstr "Không có thông tin khả dụng cho ứng dụng"
+
+#: libxfdashboard/application-button.c:768
+#: libxfdashboard/applications-search-provider.c:767
+#: libxfdashboard/applications-view.c:334 libxfdashboard/core.c:373
+#: libxfdashboard/quicklaunch.c:442
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:480
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:583
+#: xfdashboard/application.c:522
+msgid "unknown error"
+msgstr "lỗi không xác định"
+
+#: libxfdashboard/application-button.c:779
+#: libxfdashboard/applications-search-provider.c:778
+#: libxfdashboard/applications-view.c:345 libxfdashboard/quicklaunch.c:453
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:595
+#, c-format
+msgid "Application '%s' launched"
+msgstr "Ứng dụng '%s' đã khởi chạy"
+
+#: libxfdashboard/applications-search-provider.c:849
+#: libxfdashboard/applications-view.c:415 libxfdashboard/quicklaunch.c:664
+msgid "Launch"
+msgstr "Khởi chạy"
+
+#. Set up view
+#. Add "applications" button
+#: libxfdashboard/applications-search-provider.c:1191
+#: libxfdashboard/applications-view.c:1589 libxfdashboard/quicklaunch.c:3225
+msgid "Applications"
+msgstr "Ứng dụng"
+
+#: libxfdashboard/applications-view.c:552
+#: libxfdashboard/applications-view.c:553
+#: libxfdashboard/applications-view.c:664
+#: libxfdashboard/applications-view.c:665
+msgid "Back"
+msgstr "Quay lại"
+
+#: libxfdashboard/applications-view.c:552
+#: libxfdashboard/applications-view.c:664
+msgid "Go back to previous menu"
+msgstr "Quay lại menu trước"
+
+#: libxfdashboard/applications-view.c:692
+#: libxfdashboard/applications-view.c:693
+msgid "All applications"
+msgstr "Tất cả ứng dụng"
+
+#: libxfdashboard/applications-view.c:692
+msgid "List of all installed applications"
+msgstr "Danh sách tất cả ứng dụng đã cài đặt"
+
+#: libxfdashboard/core.c:371
+#, c-format
+msgid "Could not load theme '%s': %s"
+msgstr "Không thể tải chủ đề '%s': %s"
+
+#: libxfdashboard/core.c:1268
+#, c-format
+msgid "Welcome to %s (%s)!"
+msgstr "Chào mừng đến với %s (%s)!"
+
+#: libxfdashboard/core.c:1270
+#, c-format
+msgid "Welcome to %s!"
+msgstr "Chào mừng đến với %s!"
+
+#: libxfdashboard/quicklaunch.c:384
+msgid "No windows to activate for application"
+msgstr "Không có cửa sổ để kích hoạt cho ứng dụng"
+
+#: libxfdashboard/quicklaunch.c:507 libxfdashboard/quicklaunch.c:1243
+#: libxfdashboard/quicklaunch.c:2053
+#, c-format
+msgid "Favourite '%s' removed"
+msgstr "Đã gỡ bỏ '%s' khỏi yêu thích"
+
+#: libxfdashboard/quicklaunch.c:606 libxfdashboard/quicklaunch.c:925
+#: libxfdashboard/quicklaunch.c:1986
+#, c-format
+msgid "Favourite '%s' added"
+msgstr "Đã thêm '%s' vào yêu thích"
+
+#: libxfdashboard/quicklaunch.c:687
+msgid "Remove from favourites"
+msgstr "Gỡ bỏ khỏi yêu thích"
+
+#: libxfdashboard/quicklaunch.c:701
+msgid "Add to favourites"
+msgstr "Thêm vào yêu thích"
+
+#. Next add trash button to box but initially hidden and register as drop
+#. target
+#: libxfdashboard/quicklaunch.c:3232
+msgid "Remove"
+msgstr "Gỡ bỏ"
+
+#: libxfdashboard/search-result-container.c:664
+#: libxfdashboard/search-result-container.c:1734
+#, c-format
+msgid "Show %d more results..."
+msgstr "Hiển thị %d kết quả nữa..."
+
+#. Get text to set at "all"-label
+#: libxfdashboard/search-result-container.c:686
+#, c-format
+msgid "Show all %d results..."
+msgstr "Hiển thị tất cả %d kết quả..."
+
+#: libxfdashboard/search-view.c:979
+#, c-format
+msgid "No results found for '%s'"
+msgstr "Không tìm thấy kết quả cho '%s'"
+
+#. Set up view (Note: Search view is disabled by default!)
+#: libxfdashboard/search-view.c:1719
+msgid "Search"
+msgstr "Tìm kiếm"
+
+#: libxfdashboard/stage.c:1111
+msgid "Just type to search..."
+msgstr "Chỉ cần gõ để tìm kiếm..."
+
+#. Set up view
+#: libxfdashboard/windows-view.c:2310
+msgid "Windows"
+msgstr "Cửa sổ"
+
+#: plugins/autopin-windows/plugin.c:71
+msgid "Auto-pin windows"
+msgstr "Tự động ghim cửa sổ"
+
+#: plugins/autopin-windows/plugin.c:72
+msgid ""
+"Pins windows on secondary windows or unpins windows on primary windows "
+"automatically"
+msgstr ""
+"Tự động ghim cửa sổ trên màn hình phụ hoặc bỏ ghim trên màn hình chính"
+
+#. Set up view
+#: plugins/clock-view/clock-view.c:307 plugins/clock-view/plugin.c:311
+msgid "Clock"
+msgstr "Đồng hồ"
+
+#. Add widget to choose hour color
+#: plugins/clock-view/plugin.c:203
+msgid "Hour color:"
+msgstr "Màu kim giờ:"
+
+#: plugins/clock-view/plugin.c:213
+msgid "Choose color for hour hand"
+msgstr "Chọn màu cho kim giờ"
+
+#. Add widget to choose minute color
+#: plugins/clock-view/plugin.c:218
+msgid "Minute color:"
+msgstr "Màu kim phút:"
+
+#: plugins/clock-view/plugin.c:228
+msgid "Choose color for minute hand"
+msgstr "Chọn màu cho kim phút"
+
+#. Add widget to choose second color
+#: plugins/clock-view/plugin.c:233
+msgid "Second color:"
+msgstr "Màu kim giây:"
+
+#: plugins/clock-view/plugin.c:243
+msgid "Choose color for second hand"
+msgstr "Chọn màu cho kim giây"
+
+#. Add widget to choose minute color
+#: plugins/clock-view/plugin.c:248
+msgid "Background color:"
+msgstr "Màu nền:"
+
+#: plugins/clock-view/plugin.c:258
+msgid "Choose color for background of second hand"
+msgstr "Chọn màu cho nền của kim giây"
+
+#: plugins/clock-view/plugin.c:312
+msgid "Adds a new view showing a clock"
+msgstr "Thêm giao diện mới hiển thị đồng hồ"
+
+#: plugins/example-search-provider/example-search-provider.c:67
+msgid "Example search"
+msgstr "Tìm kiếm ví dụ"
+
+#: plugins/example-search-provider/plugin.c:75
+msgid "Example search provider"
+msgstr "Nhà cung cấp tìm kiếm ví dụ"
+
+#: plugins/example-search-provider/plugin.c:76
+msgid "This is just a useless example search provider plugin"
+msgstr "Đây chỉ là một phần bổ sung nhà cung cấp tìm kiếm ví dụ vô ích"
+
+#: plugins/gnome-shell-search-provider/plugin.c:464
+msgid "Gnome-Shell search provider"
+msgstr "Nhà cung cấp tìm kiếm Gnome-Shell"
+
+#: plugins/gnome-shell-search-provider/plugin.c:465
+msgid "Uses Gnome-Shell search providers as source for searches"
+msgstr "Sử dụng nhà cung cấp tìm kiếm Gnome-Shell làm nguồn cho tìm kiếm"
+
+#: plugins/hot-corner/plugin.c:194
+msgid "s"
+msgstr "s"
+
+#: plugins/hot-corner/plugin.c:198 settings/general.c:320
+msgid "ms"
+msgstr "ms"
+
+#: plugins/hot-corner/plugin.c:202 settings/general.c:92
+#: settings/general.c:324
+msgid "Immediately"
+msgstr "Ngay lập tức"
+
+#. Add widget to choose activation corner
+#: plugins/hot-corner/plugin.c:325
+msgid "Activation corner:"
+msgstr "Góc kích hoạt:"
+
+#. Add widget to choose activation radius
+#: plugins/hot-corner/plugin.c:361
+msgid "Radius of activation corner:"
+msgstr "Bán kính góc kích hoạt:"
+
+#. Add widget to choose activation duration
+#: plugins/hot-corner/plugin.c:379
+msgid "Timeout to activate:"
+msgstr "Thời gian chờ kích hoạt:"
+
+#. Add widget to limit checks to primary monitor only or to all monitors
+#: plugins/hot-corner/plugin.c:401
+msgid "Primary monitor only"
+msgstr "Chỉ màn hình chính"
+
+#: plugins/hot-corner/plugin.c:457
+msgid "Hot corner"
+msgstr "Góc nóng"
+
+#: plugins/hot-corner/plugin.c:458
+msgid ""
+"Activates xfdashboard when pointer is moved to a configured corner of "
+"monitor"
+msgstr ""
+"Kích hoạt xfdashboard khi con trỏ di chuyển đến góc đã cấu hình của màn hình"
+
+#: plugins/middle-click-window-close/plugin.c:71
+msgid "Middle-click window close"
+msgstr "Đóng cửa sổ bằng nhấp chuột giữa"
+
+#: plugins/middle-click-window-close/plugin.c:72
+msgid "Closes windows in windows view by middle-click"
+msgstr "Đóng cửa sổ trong giao diện cửa sổ bằng nhấp chuột giữa"
+
+#: plugins/recently-used-search-provider/plugin.c:75
+msgid "Recently used search provider"
+msgstr "Nhà cung cấp tìm kiếm đã dùng gần đây"
+
+#: plugins/recently-used-search-provider/plugin.c:76
+msgid "A search provider using recently used files as source"
+msgstr "Nhà cung cấp tìm kiếm sử dụng tệp đã dùng gần đây làm nguồn"
+
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:246
+msgid "Recently used"
+msgstr "Mở gần đây"
+
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:475
+#, c-format
+msgid "Launching application for '%s' failed: %s"
+msgstr "Khởi chạy ứng dụng cho '%s' thất bại: %s"
+
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:497
+#: plugins/recently-used-search-provider/recently-used-search-provider.c:518
+#, c-format
+msgid "Launching application for file '%s' failed: %s"
+msgstr "Khởi chạy ứng dụng cho tệp '%s' thất bại: %s"
+
+#: settings/general.c:84
+msgid "Do nothing"
+msgstr "Không làm gì"
+
+#: settings/general.c:85
+msgid "Windows view"
+msgstr "Giao diện cửa sổ"
+
+#: settings/general.c:86
+msgid "Applications view"
+msgstr "Giao diện ứng dụng"
+
+#: settings/general.c:93
+msgid "High"
+msgstr "Cao"
+
+#: settings/general.c:94
+msgid "Normal"
+msgstr "Thường"
+
+#: settings/general.c:95
+msgid "Low"
+msgstr "Thấp"
+
+#: settings/general.c:269
+msgid "seconds"
+msgstr "giây"
+
+#: settings/main.c:46
+msgid "Settings manager socket"
+msgstr "Socket quản lý cài đặt"
+
+#: settings/main.c:46
+msgid "SOCKET ID"
+msgstr "ID_SOCKET"
+
+#: settings/main.c:47
+msgid "Version information"
+msgstr "Thông tin phiên bản"
+
+#. Initialize GTK+
+#: settings/main.c:68
+msgid "."
+msgstr "."
+
+#: settings/main.c:72
+#, c-format
+msgid ""
+"%s: %s\n"
+"Try %s --help to see a full list of available command line options.\n"
+msgstr ""
+"%s: %s\n"
+"Thử %s --help để xem danh sách đầy đủ của các tuỳ chọn dòng lệnh khả dụng.\n"
+
+#: settings/plugins.c:222
+#, c-format
+msgid "Configure plugin: %s"
+msgstr "Cấu hình phần bổ sung: %s"
+
+#. Create error message to store in list
+#: settings/plugins.c:793
+#, c-format
+msgid ""
+"<b>Plugin could not be loaded.</b>\n"
+"\n"
+"%s"
+msgstr ""
+"<b>Không thể tải plugin.</b>\n"
+"\n"
+"%s"
+
+#: settings/plugins.c:1005
+msgid "Name"
+msgstr "Tên"
+
+#: settings/themes.c:731
+msgid "Theme"
+msgstr "Chủ đề"
+
+#: xfdashboard/application.c:478
+msgid "Fork to background"
+msgstr "Chạy nền"
+
+#: xfdashboard/application.c:479
+msgid "Quit running instance"
+msgstr "Thoát phiên bản đang chạy"
+
+#: xfdashboard/application.c:480
+msgid "Restart running instance"
+msgstr "Khởi động lại phiên bản đang chạy"
+
+#: xfdashboard/application.c:481
+msgid ""
+"Toggles visibility if running instance was started in daemon mode otherwise "
+"it quits running non-daemon instance"
+msgstr ""
+"Chuyển đổi hiển thị nếu phiên bản đang chạy được khởi động ở chế độ dịch vụ "
+"nền, nếu không sẽ thoát phiên bản không phải dịch vụ nền đang chạy"
+
+#: xfdashboard/application.c:482
+msgid "The ID of view to switch to on startup or resume"
+msgstr "ID của giao diện để chuyển đến khi khởi động hoặc tiếp tục"
+
+#: xfdashboard/application.c:483
+msgid "Show version"
+msgstr "Hiển thị phiên bản"
+
+#: xfdashboard/application.c:503
+#, c-format
+msgid "A Gnome Shell like dashboard for Xfce4 - version %s"
+msgstr "Bảng điều khiển giống Gnome Shell cho Xfce4 - phiên bản %s"
+
+#. Show error
+#: xfdashboard/application.c:521
+#, c-format
+msgid "%s\n"
+msgstr "%s\n"
