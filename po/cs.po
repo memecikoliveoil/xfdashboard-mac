@@ -7,12 +7,12 @@
 # hsn <kolar.radim@gmail.com>, 2020
 # Alois Nešpor <info@aloisnespor.info>, 2020
 # Pavel Borecki <pavel.borecki@gmail.com>, 2020
+# b537cbea55af75c3f49fe8b21c4cf8ea_f0ce149, 2023
 # Nick Schermer <nick@xfce.org>, 2024
 # Xfce Bot <transifex@xfce.org>, 2024
 # Martin Polák, 2024
-# b537cbea55af75c3f49fe8b21c4cf8ea_f0ce149, 2024
 # knedl1k <knedl1k@tuta.io>, 2024
-# Michal Várady <miko.vaji@gmail.com>, 2024
+# Michal Várady <miko.vaji@gmail.com>, 2026
 # 
 #, fuzzy
 msgid ""
@@ -21,7 +21,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: https://gitlab.xfce.org/\n"
 "POT-Creation-Date: 2024-06-23 12:51+0200\n"
 "PO-Revision-Date: 2020-10-07 10:59+0000\n"
-"Last-Translator: Michal Várady <miko.vaji@gmail.com>, 2024\n"
+"Last-Translator: Michal Várady <miko.vaji@gmail.com>, 2026\n"
 "Language-Team: Czech (https://app.transifex.com/xfce/teams/16840/cs/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -38,16 +38,16 @@ msgstr "Xfdashboard"
 #: data/org.xfce.xfdashboard.desktop.in.in:5
 #: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:7
 msgid "Maybe a Gnome shell like dashboard for Xfce"
-msgstr "Řídicí panel pro Xfce podobný tomu z prostředí Gnome"
+msgstr "Přehledový panel pro Xfce podobný GNOME Shellu"
 
 #: data/org.xfce.xfdashboard-autostart.desktop.in.in:5
 msgid "Start xfdashboard as daemon in background"
-msgstr "Spustit xfdashboard jako démon na pozadí"
+msgstr "Spustit xfdashboard na pozadí v režimu démona"
 
 #: data/org.xfce.xfdashboard-settings.desktop.in.in:5
 #: data/org.xfce.xfdashboard-settings.desktop.in.in:7
 msgid "Xfdashboard settings"
-msgstr "Nastavení xfdashboard"
+msgstr "Nastavení Xfdashboardu"
 
 #: data/org.xfce.xfdashboard-settings.desktop.in.in:6
 msgid "Configure xfdashboard"
@@ -63,8 +63,8 @@ msgid ""
 "Xfdashboard provides a GNOME shell dashboard like interface for use with "
 "Xfce desktop."
 msgstr ""
-"Xfdashboard poskytuje řídicí panel podobně jako v prostředí GNOME pro "
-"použití v pracovním prostředí Xfce."
+"Xfdashboard poskytuje pro pracovní prostředí Xfce přehledový panel podobný "
+"GNOME Shellu"
 
 #: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:13
 msgid ""
@@ -88,7 +88,7 @@ msgstr "Hledání aplikací"
 
 #: data/data/preferences.ui:88
 msgid "<span size=\"large\"><b>Xfdashboard settings</b></span>"
-msgstr "<span size=\"large\"><b>Nastavení Xfdashboard</b></span>"
+msgstr "<span size=\"large\"><b>Nastavení Xfdashboardu</b></span>"
 
 #: data/data/preferences.ui:103
 msgid "Configure plugin"
@@ -99,12 +99,12 @@ msgid ""
 "<span size=\"large\"><b>Xfdashboard settings</b></span>\n"
 "Configure xfdashboard"
 msgstr ""
-"<span size=\"large\"><b>Nastavení Xfdashboard</b></span>\n"
-"Konfigurace xfdashboard"
+"<span size=\"large\"><b>Nastavení Xfdashboardu</b></span>\n"
+"Nastavit Xfdashboard"
 
 #: data/data/preferences.ui:216
 msgid "<b>General settings:</b>"
-msgstr "<b> Obecná nastavení: </b>"
+msgstr "<b> Obecná nastavení:</b>"
 
 #: data/data/preferences.ui:228
 msgid "Reset search view when resumed"
@@ -116,9 +116,9 @@ msgid ""
 "\n"
 "<b>NOTE:</b> This setting only takes effect if xfdashboard is running in daemon mode. "
 msgstr ""
-"Pokud je tato možnost povolena, zobrazení hledání se při obnovení "
-"xfdashboard zresetuje. To znamená, že se aktivní zobrazení přepne zpět na "
-"předchozí zobrazení před posledním hledáním a pole pro hledání se vymaže."
+"Pokud je tato volba povolena, zobrazení vyhledávání se při opětovném zobrazení xfdashboardu resetuje. To znamená, že se aktivní zobrazení přepne zpět na zobrazení aktivní před posledním vyhledáváním a vyhledávací pole se vyprázdní.\n"
+"\n"
+"<b>POZNÁMKA:</b> Toto nastavení se projeví jen tehdy, když xfdashboard běží v režimu démona."
 
 #: data/data/preferences.ui:253 data/data/preferences.ui:270
 msgid ""
@@ -128,7 +128,7 @@ msgid ""
 msgstr ""
 "Když se xfdashboard obnoví, aktivuje se vybrané zobrazení.\n"
 "\n"
-"<b>POZNÁMKA:</b> Toto nastavení bude použito pouze pokud je xfdashboard spuštěn jako služba."
+"<b>POZNÁMKA:</b> Toto nastavení se projeví jen tehdy, když xfdashboard běží v režimu démona."
 
 #: data/data/preferences.ui:258
 msgid "Switch to view when resumed:"
@@ -150,7 +150,7 @@ msgstr "Minimální časový limit oznámení:"
 
 #: data/data/preferences.ui:332
 msgid "Enable workaround for minimized windows"
-msgstr "Povolit obejití pro minimalizovaná okna"
+msgstr "Povolit náhradní řešení pro minimalizovaná okna"
 
 #: data/data/preferences.ui:336
 msgid ""
@@ -158,9 +158,9 @@ msgid ""
 "\n"
 "<b>NOTE:</b> Be aware that this is a <u>workaround</u> and your minimized windows could stay unminimized, change workspace etc."
 msgstr ""
-"Pokud je tato volby povolena, náhledy minimalizovaných oken budou vynuceny krátkým obnovením a opětovným minimalizováním těchto oken.\n"
+"Pokud je tato volba povolena, xfdashboard se pokusí získat statické náhledy minimalizovaných oken tak, že je krátce obnoví a znovu minimalizuje.\n"
 "\n"
-"<b>POZNÁMKA:</b>Pozor, toto je pouze <u>obejití běžného fungování</u> a vaše okna mohou zůstat obnovena z minima, změnit pracovní plochu, atd."
+"<b>POZNÁMKA:</b> Jde jen o <u>náhradní řešení</u>. Minimalizovaná okna proto mohou zůstat obnovena, přesunout se na jinou pracovní plochu apod."
 
 #: data/data/preferences.ui:357 data/data/preferences.ui:372
 msgid ""
@@ -168,9 +168,9 @@ msgid ""
 "\n"
 "<b>NOTE:</b> Only change this value from 'immediate' to other value if your graphics card, driver or system is too slow to create the window contents immediately. You have to try each value to find the one fitting your system."
 msgstr ""
-"Tato hodnota definuje, jak rychle se vytvoří náhled obsahu okna. Zatímco hodnota 'okamžitě' řekne službě xfdashboard, aby vytvořila obsah okna v okamžiku vyžádání, všechny ostatní hotnoty vytvoří frontu a hodnota definuje, jak rychle bude fronta zpracována.\n"
+"Tato hodnota určuje, jak rychle se má vytvářet obsah oken. Hodnota „Okamžitě“ znamená, že xfdashboard vytvoří obsah okna ve chvíli, kdy je vyžádán. Všechny ostatní hodnoty zařadí požadavky do fronty a určují, jak rychle se bude tato fronta zpracovávat.\n"
 "\n"
-"<b>POZNÁMKA:</b> Tuto hodnotu změňte z 'okamžitě' pouze v případě, že jsou grafická karta, ovladač nebo systém příliš pomalé, aby obsah okna vytvořily okamžitě. Je potřeba vyzkoušet, jaká hodnota je pro váš systém vhodná."
+"<b>POZNÁMKA:</b> Hodnotu „Okamžitě“ měňte jen v případě, že jsou grafická karta, ovladač nebo systém příliš pomalé na okamžité vytváření obsahu oken. Vhodnou hodnotu pro svůj systém je potřeba najít vyzkoušením jednotlivých možností."
 
 #: data/data/preferences.ui:360
 msgid "Priority of window content creation"
@@ -208,8 +208,7 @@ msgstr "Povolit animace"
 
 #: data/data/preferences.ui:429
 msgid "If enabled theme-defined animations will be shown."
-msgstr ""
-"Pokud je tato volba povolena, budou zobrazeny animace definované motivem"
+msgstr "Pokud je tato volba povolena, zobrazí se animace definované motivem."
 
 #: data/data/preferences.ui:444
 msgid "<b>Applications view:</b>"
@@ -217,19 +216,19 @@ msgstr "<b>Zobrazení aplikací:</b>"
 
 #: data/data/preferences.ui:456
 msgid "Show menu for all installed applications"
-msgstr "Zobrazit menu pro všechny nainstalované aplikace"
+msgstr "Zobrazit nabídku se všemi nainstalovanými aplikacemi"
 
 #: data/data/preferences.ui:460
 msgid ""
 "When enabled an \"all applications\" menu containing all installed "
 "applications will be shown at applications view"
 msgstr ""
-"Pokud je tato volba povolena, bude ve zobrazení aplikací zobrazeno menu "
-"„všechny aplikace“ obsahující všechny nainstalované aplikace."
+"Pokud je tato volba povolena, bude ve zobrazení aplikací zobrazena nabídka "
+"„Všechny aplikace“ obsahující všechny nainstalované aplikace."
 
 #: data/data/preferences.ui:475
 msgid "<b>Windows view:</b>"
-msgstr "</b>Zobrazení oken:</b>"
+msgstr "<b>Zobrazení oken:</b>"
 
 #: data/data/preferences.ui:487
 msgid "Mouse wheel changes workspace"
@@ -278,7 +277,7 @@ msgstr "<b>Verze:</b>"
 
 #: data/data/preferences.ui:694 data/data/preferences.ui:870
 msgid "<b>Description:</b>"
-msgstr "</b>Popis:</b>"
+msgstr "<b>Popis:</b>"
 
 #: data/data/preferences.ui:740
 msgid "Themes"
@@ -347,7 +346,7 @@ msgstr "Motiv červeného vína pro xfdashboard"
 #: libxfdashboard/application-button.c:267
 #, c-format
 msgid "Could not execute action '%s' for application '%s': %s"
-msgstr "Nelze spustit akci  '%s' aplikace '%s': %s"
+msgstr "Nelze spustit akci '%s' aplikace '%s': %s"
 
 #: libxfdashboard/application-button.c:270 settings/main.c:74
 #: settings/plugins.c:794
@@ -357,7 +356,7 @@ msgstr "Neznámá chyba"
 #: libxfdashboard/application-button.c:287
 #, c-format
 msgid "Executed action '%s' for application '%s'"
-msgstr "Spuštěná akce '%s' aplikace '%s'"
+msgstr "Akce „%s“ aplikace „%s“ byla spuštěna"
 
 #: libxfdashboard/application-button.c:748
 #: libxfdashboard/application-button.c:766
@@ -415,7 +414,7 @@ msgstr "Zpět"
 #: libxfdashboard/applications-view.c:552
 #: libxfdashboard/applications-view.c:664
 msgid "Go back to previous menu"
-msgstr "Přejít na předchozí menu"
+msgstr "Přejít zpět na předchozí nabídku"
 
 #: libxfdashboard/applications-view.c:692
 #: libxfdashboard/applications-view.c:693
@@ -443,7 +442,7 @@ msgstr "Vítejte v %s"
 
 #: libxfdashboard/quicklaunch.c:384
 msgid "No windows to activate for application"
-msgstr "Aplikaci nelze aktivovat žádné okno"
+msgstr "Pro aplikaci není k dispozici žádné okno k aktivaci"
 
 #: libxfdashboard/quicklaunch.c:507 libxfdashboard/quicklaunch.c:1243
 #: libxfdashboard/quicklaunch.c:2053
@@ -504,15 +503,15 @@ msgstr "Okna"
 
 #: plugins/autopin-windows/plugin.c:71
 msgid "Auto-pin windows"
-msgstr "Automaticky připnout okna"
+msgstr "Automaticky připínat okna"
 
 #: plugins/autopin-windows/plugin.c:72
 msgid ""
 "Pins windows on secondary windows or unpins windows on primary windows "
 "automatically"
 msgstr ""
-"Automaticky připne okna na sekundární okna nebo odepne okna z primárních "
-"oken"
+"Automaticky připíná okna na neprimárních monitorech a odepíná je na "
+"primárním monitoru"
 
 #. Set up view
 #: plugins/clock-view/clock-view.c:307 plugins/clock-view/plugin.c:311
@@ -522,29 +521,29 @@ msgstr "Hodiny"
 #. Add widget to choose hour color
 #: plugins/clock-view/plugin.c:203
 msgid "Hour color:"
-msgstr "Barva hodin:"
+msgstr "Barva hodinové ručičky:"
 
 #: plugins/clock-view/plugin.c:213
 msgid "Choose color for hour hand"
-msgstr "Zvolte barvu pro hodinové ručičky"
+msgstr "Zvolte barvu hodinové ručičky"
 
 #. Add widget to choose minute color
 #: plugins/clock-view/plugin.c:218
 msgid "Minute color:"
-msgstr "Barva pro minuty:"
+msgstr "Barva minutové ručičky:"
 
 #: plugins/clock-view/plugin.c:228
 msgid "Choose color for minute hand"
-msgstr "Zvolte barvu pro minutovou ručičku"
+msgstr "Zvolte barvu minutové ručičky"
 
 #. Add widget to choose second color
 #: plugins/clock-view/plugin.c:233
 msgid "Second color:"
-msgstr "Druhá barva:"
+msgstr "Barva sekundové ručičky:"
 
 #: plugins/clock-view/plugin.c:243
 msgid "Choose color for second hand"
-msgstr "Zvolte barvu pro druhou ručičku"
+msgstr "Zvolte barvu sekundové ručičky"
 
 #. Add widget to choose minute color
 #: plugins/clock-view/plugin.c:248
@@ -553,11 +552,11 @@ msgstr "Barva pozadí:"
 
 #: plugins/clock-view/plugin.c:258
 msgid "Choose color for background of second hand"
-msgstr "Zvolte barvu pro pozadí druhé ručičky"
+msgstr "Zvolte barvu pozadí sekundové ručičky"
 
 #: plugins/clock-view/plugin.c:312
 msgid "Adds a new view showing a clock"
-msgstr "Přidá nový pohled zobrazující hodiny"
+msgstr "Přidá nové zobrazení s hodinami"
 
 #: plugins/example-search-provider/example-search-provider.c:67
 msgid "Example search"
@@ -565,19 +564,19 @@ msgstr "Příklad hledání"
 
 #: plugins/example-search-provider/plugin.c:75
 msgid "Example search provider"
-msgstr "Příklad poskytovatele hledání"
+msgstr "Příklad poskytovatele vyhledávání"
 
 #: plugins/example-search-provider/plugin.c:76
 msgid "This is just a useless example search provider plugin"
-msgstr "Toto je pouze příklad zásuvného modulu poskytovatele hledání"
+msgstr "Toto je pouze příklad zásuvného modulu poskytovatele vyhledávání"
 
 #: plugins/gnome-shell-search-provider/plugin.c:464
 msgid "Gnome-Shell search provider"
-msgstr "Poskytovatel hledání Gnome-Shell"
+msgstr "Poskytovatel vyhledávání GNOME Shellu"
 
 #: plugins/gnome-shell-search-provider/plugin.c:465
 msgid "Uses Gnome-Shell search providers as source for searches"
-msgstr "Použije jako zdroj pro hledání poskytovatele hledání Gnome-Shell"
+msgstr "Používá poskytovatele vyhledávání GNOME Shellu jako zdroj vyhledávání"
 
 #: plugins/hot-corner/plugin.c:194
 msgid "s"
@@ -634,11 +633,12 @@ msgstr "Zavře okno ve zobrazení oken kliknutím prostředního tlačítka"
 
 #: plugins/recently-used-search-provider/plugin.c:75
 msgid "Recently used search provider"
-msgstr "Nedávno použitý poskytovatel hledání"
+msgstr "Nedávno použitý poskytovatel vyhledávání"
 
 #: plugins/recently-used-search-provider/plugin.c:76
 msgid "A search provider using recently used files as source"
-msgstr "Poskytovatel hledání používá nedávno použité soubory jako zdroj"
+msgstr ""
+"Poskytovatel vyhledávání používající jako zdroj nedávno použité soubory"
 
 #: plugins/recently-used-search-provider/recently-used-search-provider.c:246
 msgid "Recently used"
@@ -707,7 +707,7 @@ msgid ""
 "Try %s --help to see a full list of available command line options.\n"
 msgstr ""
 "%s: %s\n"
-"Úplný seznam dostupných možností příkazové řádky získáte příkazem %s --help\n"
+"Úplný seznam dostupných voleb příkazového řádku získáte příkazem %s --help\n"
 
 #: settings/plugins.c:222
 #, c-format
@@ -751,8 +751,8 @@ msgid ""
 "Toggles visibility if running instance was started in daemon mode otherwise "
 "it quits running non-daemon instance"
 msgstr ""
-"Přepíná viditelnost, pokud byla instance spuštěna jako služba na pozadí, "
-"jinak ukončí instanci neběžící jako služba."
+"Přepne viditelnost, pokud byla běžící instance spuštěna v režimu démona; "
+"jinak ukončí běžící instanci, která v režimu démona neběží."
 
 #: xfdashboard/application.c:482
 msgid "The ID of view to switch to on startup or resume"
@@ -765,7 +765,7 @@ msgstr "Zobrazit verzi"
 #: xfdashboard/application.c:503
 #, c-format
 msgid "A Gnome Shell like dashboard for Xfce4 - version %s"
-msgstr "Řídicí panel pro Xfce4 %s podobný Gnome Shell"
+msgstr "Přehledový panel pro Xfce4 podobný GNOME Shellu - verze %s"
 
 #. Show error
 #: xfdashboard/application.c:521
