@@ -51,7 +51,7 @@ msgstr "Nastavení Xfdashboardu"
 
 #: data/org.xfce.xfdashboard-settings.desktop.in.in:6
 msgid "Configure xfdashboard"
-msgstr "Konfigurace xfdashboard"
+msgstr "Nastavit Xfdashboard"
 
 #: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:6
 #: data/themes/xfdashboard/xfdashboard.theme.desktop.in.in:3
@@ -64,7 +64,7 @@ msgid ""
 "Xfce desktop."
 msgstr ""
 "Xfdashboard poskytuje pro pracovní prostředí Xfce přehledový panel podobný "
-"GNOME Shellu"
+"GNOME Shellu."
 
 #: data/metainfo/org.xfce.xfdashboard.metainfo.xml.in:13
 msgid ""
@@ -104,11 +104,11 @@ msgstr ""
 
 #: data/data/preferences.ui:216
 msgid "<b>General settings:</b>"
-msgstr "<b> Obecná nastavení:</b>"
+msgstr "<b>Obecná nastavení:</b>"
 
 #: data/data/preferences.ui:228
 msgid "Reset search view when resumed"
-msgstr "Resetovat zobrazení hledání pro obnovení"
+msgstr "Resetovat zobrazení vyhledávání při opětovném zobrazení"
 
 #: data/data/preferences.ui:232
 msgid ""
@@ -126,7 +126,7 @@ msgid ""
 "\n"
 "<b>NOTE:</b> This setting only takes effect if xfdashboard is running in daemon mode."
 msgstr ""
-"Když se xfdashboard obnoví, aktivuje se vybrané zobrazení.\n"
+"Při opětovném zobrazení xfdashboardu se aktivuje vybrané zobrazení.\n"
 "\n"
 "<b>POZNÁMKA:</b> Toto nastavení se projeví jen tehdy, když xfdashboard běží v režimu démona."
 
@@ -178,15 +178,15 @@ msgstr "Priorita vytváření obsahu okna"
 
 #: data/data/preferences.ui:391
 msgid "Show child windows in main windows"
-msgstr "Zobrazit okna potomků v hlavních oknech"
+msgstr "Zobrazit podřízená okna v hlavních oknech"
 
 #: data/data/preferences.ui:395
 msgid ""
 "When enabled all live window previews will also show their child windows. "
 "Disabling this option will increase performance on slower machines."
 msgstr ""
-"Pokud je tato volba povolena, všechny náhledy živých oken zobrazí také okna "
-"svých potomků. Zakázáním této volby zvýšíte výkon na pomalejších strojích."
+"Pokud je tato volba povolena, všechny náhledy živých oken zobrazí také "
+"podřízená okna. Zakázáním této volby zvýšíte výkon na pomalejších strojích."
 
 #: data/data/preferences.ui:407
 msgid "Always start a new instance for application"
@@ -200,7 +200,7 @@ msgid ""
 msgstr ""
 "Pokud je tato volba povolena a kliknete na ikonu v rychlém spuštění, vždy spustíte novou instanci této aplikace.\n"
 "\n"
-"Pokud tato volby není povolena, bude vybráno poslední známé aktivní okno spuštěné instance aplikace. Pokud aplikace není spuštěna, spustí se nová instance."
+"Pokud tato volba není povolena, bude vybráno poslední známé aktivní okno spuštěné instance aplikace. Pokud aplikace není spuštěna, spustí se nová instance."
 
 #: data/data/preferences.ui:425
 msgid "Enable animations"
@@ -346,7 +346,7 @@ msgstr "Motiv červeného vína pro xfdashboard"
 #: libxfdashboard/application-button.c:267
 #, c-format
 msgid "Could not execute action '%s' for application '%s': %s"
-msgstr "Nelze spustit akci '%s' aplikace '%s': %s"
+msgstr "Nelze spustit akci „%s“ aplikace „%s“: %s"
 
 #: libxfdashboard/application-button.c:270 settings/main.c:74
 #: settings/plugins.c:794
