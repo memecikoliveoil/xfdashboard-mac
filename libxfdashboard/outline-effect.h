@@ -64,7 +64,7 @@ struct _XfdashboardOutlineEffectClass
 };
 
 /* Public API */
-GType xfdashboard_outline_effect_get_type(void) G_GNUC_CONST;
+GType xfdashboard_outline_effect_get_type(void);
 
 ClutterEffect* xfdashboard_outline_effect_new(void);
 

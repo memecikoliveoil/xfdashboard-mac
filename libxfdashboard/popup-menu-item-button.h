@@ -75,7 +75,7 @@ struct _XfdashboardPopupMenuItemButtonClass
 };
 
 /* Public API */
-GType xfdashboard_popup_menu_item_button_get_type(void) G_GNUC_CONST;
+GType xfdashboard_popup_menu_item_button_get_type(void);
 
 ClutterActor* xfdashboard_popup_menu_item_button_new(void);
 ClutterActor* xfdashboard_popup_menu_item_button_new_with_text(const gchar *inText);

@@ -81,7 +81,7 @@ struct _XfdashboardViewSelectorClass
 };
 
 /* Public API */
-GType xfdashboard_view_selector_get_type(void) G_GNUC_CONST;
+GType xfdashboard_view_selector_get_type(void);
 
 ClutterActor* xfdashboard_view_selector_new(void);
 ClutterActor* xfdashboard_view_selector_new_for_viewpad(XfdashboardViewpad *inViewpad);

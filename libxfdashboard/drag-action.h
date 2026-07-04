@@ -65,7 +65,7 @@ struct _XfdashboardDragActionClass
 };
 
 /* Public API */
-GType xfdashboard_drag_action_get_type(void) G_GNUC_CONST;
+GType xfdashboard_drag_action_get_type(void);
 
 ClutterAction* xfdashboard_drag_action_new();
 ClutterAction* xfdashboard_drag_action_new_with_source(ClutterActor *inSource);

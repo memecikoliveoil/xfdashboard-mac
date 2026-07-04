@@ -60,7 +60,7 @@ struct _XfdashboardSettingsAppClass
 };
 
 /* Public API */
-GType xfdashboard_settings_app_get_type(void) G_GNUC_CONST;
+GType xfdashboard_settings_app_get_type(void);
 
 XfdashboardSettingsApp* xfdashboard_settings_app_new(void);
 

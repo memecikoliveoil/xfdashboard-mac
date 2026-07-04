@@ -135,7 +135,7 @@ typedef enum /*< prefix=XFDASHBOARD_PLUGIN_ERROR >*/
 } XfdashboardPluginErrorEnum;
 
 /* Public API */
-GType xfdashboard_plugin_get_type(void) G_GNUC_CONST;
+GType xfdashboard_plugin_get_type(void);
 
 XfdashboardPlugin* xfdashboard_plugin_new(const gchar *inPluginFilename, GError **outError);
 

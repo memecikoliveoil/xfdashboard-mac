@@ -75,7 +75,7 @@ struct _XfdashboardViewpadClass
 };
 
 /* Public API */
-GType xfdashboard_viewpad_get_type(void) G_GNUC_CONST;
+GType xfdashboard_viewpad_get_type(void);
 
 ClutterActor* xfdashboard_viewpad_new(void);
 

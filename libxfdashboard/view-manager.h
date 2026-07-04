@@ -66,7 +66,7 @@ struct _XfdashboardViewManagerClass
 };
 
 /* Public API */
-GType xfdashboard_view_manager_get_type(void) G_GNUC_CONST;
+GType xfdashboard_view_manager_get_type(void);
 
 gboolean xfdashboard_view_manager_register(XfdashboardViewManager *self, const gchar *inID, GType inViewType);
 gboolean xfdashboard_view_manager_unregister(XfdashboardViewManager *self, const gchar *inID);

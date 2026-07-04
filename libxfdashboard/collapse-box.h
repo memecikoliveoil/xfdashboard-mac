@@ -69,7 +69,7 @@ struct _XfdashboardCollapseBoxClass
 };
 
 /* Public API */
-GType xfdashboard_collapse_box_get_type(void) G_GNUC_CONST;
+GType xfdashboard_collapse_box_get_type(void);
 
 ClutterActor* xfdashboard_collapse_box_new(void);
 

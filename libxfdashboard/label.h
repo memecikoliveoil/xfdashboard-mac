@@ -86,7 +86,7 @@ struct _XfdashboardLabelClass
 };
 
 /* Public API */
-GType xfdashboard_label_get_type(void) G_GNUC_CONST;
+GType xfdashboard_label_get_type(void);
 
 ClutterActor* xfdashboard_label_new(void);
 ClutterActor* xfdashboard_label_new_with_text(const gchar *inText);

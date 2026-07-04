@@ -95,7 +95,7 @@ struct _XfdashboardQuicklaunchClass
 };
 
 /* Public API */
-GType xfdashboard_quicklaunch_get_type(void) G_GNUC_CONST;
+GType xfdashboard_quicklaunch_get_type(void);
 
 ClutterActor* xfdashboard_quicklaunch_new(void);
 ClutterActor* xfdashboard_quicklaunch_new_with_orientation(ClutterOrientation inOrientation);

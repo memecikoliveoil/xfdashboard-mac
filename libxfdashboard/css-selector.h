@@ -78,7 +78,7 @@ typedef gboolean (*XfdashboardCssSelectorParseFinishCallback)(XfdashboardCssSele
 																gpointer inUserData);
 
 /* Public API */
-GType xfdashboard_css_selector_get_type(void) G_GNUC_CONST;
+GType xfdashboard_css_selector_get_type(void);
 
 XfdashboardCssSelector* xfdashboard_css_selector_new_from_string(const gchar *inSelector);
 XfdashboardCssSelector* xfdashboard_css_selector_new_from_string_with_priority(const gchar *inSelector, gint inPriority);

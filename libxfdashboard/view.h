@@ -113,7 +113,7 @@ struct _XfdashboardViewClass
 
 
 /* Public API */
-GType xfdashboard_view_get_type(void) G_GNUC_CONST;
+GType xfdashboard_view_get_type(void);
 
 const gchar* xfdashboard_view_get_id(XfdashboardView *self);
 gboolean xfdashboard_view_has_id(XfdashboardView *self, const gchar *inID);

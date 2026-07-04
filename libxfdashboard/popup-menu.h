@@ -84,7 +84,7 @@ struct _XfdashboardPopupMenuClass
 };
 
 /* Public API */
-GType xfdashboard_popup_menu_get_type(void) G_GNUC_CONST;
+GType xfdashboard_popup_menu_get_type(void);
 
 ClutterActor* xfdashboard_popup_menu_new(void);
 ClutterActor* xfdashboard_popup_menu_new_for_source(ClutterActor *inSource);

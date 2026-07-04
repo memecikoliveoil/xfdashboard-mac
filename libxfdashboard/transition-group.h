@@ -78,7 +78,7 @@ struct _XfdashboardTransitionGroupClass
 };
 
 /* Public API */
-GType xfdashboard_transition_group_get_type(void) G_GNUC_CONST;
+GType xfdashboard_transition_group_get_type(void);
 
 ClutterTransition* xfdashboard_transition_group_new(void);
 

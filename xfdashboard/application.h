@@ -111,7 +111,7 @@ struct _XfdashboardApplicationClass
 
 
 /* Public API */
-GType xfdashboard_application_get_type(void) G_GNUC_CONST;
+GType xfdashboard_application_get_type(void);
 
 XfdashboardApplication* xfdashboard_application_new(void);
 

@@ -67,7 +67,7 @@ struct _XfdashboardWindowTrackerBackendGDKClass
 };
 
 /* Public API */
-GType xfdashboard_window_tracker_backend_gdk_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_tracker_backend_gdk_get_type(void);
 
 XfdashboardWindowTrackerBackend* xfdashboard_window_tracker_backend_gdk_new(void);
 

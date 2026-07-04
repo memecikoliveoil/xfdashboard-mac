@@ -77,7 +77,7 @@ struct _XfdashboardToggleButtonClass
 };
 
 /* Public API */
-GType xfdashboard_toggle_button_get_type(void) G_GNUC_CONST;
+GType xfdashboard_toggle_button_get_type(void);
 
 ClutterActor* xfdashboard_toggle_button_new(void);
 ClutterActor* xfdashboard_toggle_button_new_with_text(const gchar *inText);

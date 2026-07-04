@@ -65,7 +65,7 @@ struct _XfdashboardStageInterfaceClass
 };
 
 /* Public API */
-GType xfdashboard_stage_interface_get_type(void) G_GNUC_CONST;
+GType xfdashboard_stage_interface_get_type(void);
 
 ClutterActor* xfdashboard_stage_interface_new(void);
 

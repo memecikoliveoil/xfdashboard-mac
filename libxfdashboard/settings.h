@@ -84,7 +84,7 @@ struct _XfdashboardSettingsClass
 
 
 /* Public API */
-GType xfdashboard_settings_get_type(void) G_GNUC_CONST;
+GType xfdashboard_settings_get_type(void);
 
 void xfdashboard_settings_add_plugin(XfdashboardSettings *self, XfdashboardPlugin *inPlugin);
 void xfdashboard_settings_remove_plugin(XfdashboardSettings *self, XfdashboardPlugin *inPlugin);

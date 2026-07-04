@@ -65,7 +65,7 @@ struct _XfdashboardScaledTableLayoutClass
 };
 
 /* Public API */
-GType xfdashboard_scaled_table_layout_get_type(void) G_GNUC_CONST;
+GType xfdashboard_scaled_table_layout_get_type(void);
 
 ClutterLayoutManager* xfdashboard_scaled_table_layout_new(void);
 

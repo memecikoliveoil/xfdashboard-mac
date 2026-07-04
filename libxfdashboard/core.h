@@ -145,7 +145,7 @@ typedef enum /*< prefix=XFDASHBOARD_CORE_ERROR >*/
 
 
 /* Public API */
-GType xfdashboard_core_get_type(void) G_GNUC_CONST;
+GType xfdashboard_core_get_type(void);
 
 gboolean xfdashboard_core_initialize(XfdashboardCore *self, GError **outError);
 

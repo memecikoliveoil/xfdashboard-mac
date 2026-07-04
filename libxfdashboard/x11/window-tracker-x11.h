@@ -78,7 +78,7 @@ struct _XfdashboardWindowTrackerX11Class
 };
 
 /* Public API */
-GType xfdashboard_window_tracker_x11_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_tracker_x11_get_type(void);
 
 guint32 xfdashboard_window_tracker_x11_get_time(void);
 

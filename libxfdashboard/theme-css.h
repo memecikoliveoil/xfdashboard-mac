@@ -120,7 +120,7 @@ struct _XfdashboardThemeCSSValue
 };
 
 /* Public API */
-GType xfdashboard_theme_css_get_type(void) G_GNUC_CONST;
+GType xfdashboard_theme_css_get_type(void);
 
 XfdashboardThemeCSS* xfdashboard_theme_css_new(const gchar *inThemePath);
 

@@ -77,7 +77,7 @@ struct _XfdashboardXfconfSettingsClass
 };
 
 /* Public API */
-GType xfdashboard_xfconf_settings_get_type(void) G_GNUC_CONST;
+GType xfdashboard_xfconf_settings_get_type(void);
 
 G_END_DECLS
 

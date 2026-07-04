@@ -72,7 +72,7 @@ struct _XfdashboardPluginsManagerClass
 };
 
 /* Public API */
-GType xfdashboard_plugins_manager_get_type(void) G_GNUC_CONST;
+GType xfdashboard_plugins_manager_get_type(void);
 
 gboolean xfdashboard_plugins_manager_setup(XfdashboardPluginsManager *self);
 

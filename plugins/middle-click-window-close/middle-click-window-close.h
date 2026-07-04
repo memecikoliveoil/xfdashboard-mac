@@ -56,7 +56,7 @@ struct _XfdashboardMiddleClickWindowCloseClass
 };
 
 /* Public API */
-GType xfdashboard_middle_click_window_close_get_type(void) G_GNUC_CONST;
+GType xfdashboard_middle_click_window_close_get_type(void);
 
 XFDASHBOARD_DECLARE_PLUGIN_TYPE(xfdashboard_middle_click_window_close);
 

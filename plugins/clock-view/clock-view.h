@@ -56,7 +56,7 @@ struct _XfdashboardClockViewClass
 };
 
 /* Public API */
-GType xfdashboard_clock_view_get_type(void) G_GNUC_CONST;
+GType xfdashboard_clock_view_get_type(void);
 
 XFDASHBOARD_DECLARE_PLUGIN_TYPE(xfdashboard_clock_view);
 

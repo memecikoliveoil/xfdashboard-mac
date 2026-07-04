@@ -76,7 +76,7 @@ struct _XfdashboardWindowTrackerBackendInterface
 
 
 /* Public API */
-GType xfdashboard_window_tracker_backend_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_tracker_backend_get_type(void);
 
 void xfdashboard_window_tracker_backend_set_backend(const gchar *inBackend);
 

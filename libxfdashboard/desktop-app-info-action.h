@@ -65,7 +65,7 @@ struct _XfdashboardDesktopAppInfoActionClass
 };
 
 /* Public API */
-GType xfdashboard_desktop_app_info_action_get_type(void) G_GNUC_CONST;
+GType xfdashboard_desktop_app_info_action_get_type(void);
 
 const gchar* xfdashboard_desktop_app_info_action_get_name(XfdashboardDesktopAppInfoAction *self);
 void xfdashboard_desktop_app_info_action_set_name(XfdashboardDesktopAppInfoAction *self,

@@ -93,7 +93,7 @@ struct _XfdashboardStylableInterface
 };
 
 /* Public API */
-GType xfdashboard_stylable_get_type(void) G_GNUC_CONST;
+GType xfdashboard_stylable_get_type(void);
 
 GHashTable* xfdashboard_stylable_get_stylable_properties(XfdashboardStylable *self);
 gboolean xfdashboard_stylable_add_stylable_property(XfdashboardStylable *self,

@@ -100,7 +100,7 @@ struct _XfdashboardBackgroundClass
 };
 
 /* Public API */
-GType xfdashboard_background_get_type(void) G_GNUC_CONST;
+GType xfdashboard_background_get_type(void);
 
 ClutterActor* xfdashboard_background_new(void);
 

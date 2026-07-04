@@ -78,7 +78,7 @@ typedef enum /*< flags,prefix=XFDASHBOARD_BINDING_FLAGS >*/
 	XFDASHBOARD_BINDING_FLAGS_ALLOW_UNFOCUSABLE_TARGET=1 << 0,
 } XfdashboardBindingFlags;
 
-GType xfdashboard_binding_get_type(void) G_GNUC_CONST;
+GType xfdashboard_binding_get_type(void);
 
 XfdashboardBinding* xfdashboard_binding_new(void);
 XfdashboardBinding* xfdashboard_binding_new_for_event(const ClutterEvent *inEvent);

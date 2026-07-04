@@ -64,7 +64,7 @@ struct _XfdashboardWorkspaceSelectorClass
 };
 
 /* Public API */
-GType xfdashboard_workspace_selector_get_type(void) G_GNUC_CONST;
+GType xfdashboard_workspace_selector_get_type(void);
 
 ClutterActor* xfdashboard_workspace_selector_new(void);
 ClutterActor* xfdashboard_workspace_selector_new_with_orientation(ClutterOrientation inOrientation);

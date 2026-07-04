@@ -57,7 +57,7 @@ struct _XfdashboardAutopinWindowsClass
 };
 
 /* Public API */
-GType xfdashboard_autopin_windows_get_type(void) G_GNUC_CONST;
+GType xfdashboard_autopin_windows_get_type(void);
 
 XFDASHBOARD_DECLARE_PLUGIN_TYPE(xfdashboard_autopin_windows);
 

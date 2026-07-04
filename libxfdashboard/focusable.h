@@ -123,7 +123,7 @@ struct _XfdashboardFocusableInterface
 };
 
 /* Public API */
-GType xfdashboard_focusable_get_type(void) G_GNUC_CONST;
+GType xfdashboard_focusable_get_type(void);
 
 gboolean xfdashboard_focusable_can_focus(XfdashboardFocusable *self);
 void xfdashboard_focusable_set_focus(XfdashboardFocusable *self);

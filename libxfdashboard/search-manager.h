@@ -70,7 +70,7 @@ struct _XfdashboardSearchManagerClass
 };
 
 /* Public API */
-GType xfdashboard_search_manager_get_type(void) G_GNUC_CONST;
+GType xfdashboard_search_manager_get_type(void);
 
 gboolean xfdashboard_search_manager_register(XfdashboardSearchManager *self, const gchar *inID, GType inProviderType);
 gboolean xfdashboard_search_manager_unregister(XfdashboardSearchManager *self, const gchar *inID);

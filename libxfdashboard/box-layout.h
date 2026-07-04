@@ -70,7 +70,7 @@ struct _XfdashboardBoxLayoutClass
 };
 
 /* Public API */
-GType xfdashboard_box_layout_get_type(void) G_GNUC_CONST;
+GType xfdashboard_box_layout_get_type(void);
 
 ClutterLayoutManager* xfdashboard_box_layout_new(void);
 

@@ -67,7 +67,7 @@ struct _XfdashboardScrollbarClass
 };
 
 /* Public API */
-GType xfdashboard_scrollbar_get_type(void) G_GNUC_CONST;
+GType xfdashboard_scrollbar_get_type(void);
 
 ClutterActor* xfdashboard_scrollbar_new(ClutterOrientation inOrientation);
 

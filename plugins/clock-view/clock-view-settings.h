@@ -58,7 +58,7 @@ struct _XfdashboardClockViewSettingsClass
 };
 
 /* Public API */
-GType xfdashboard_clock_view_settings_get_type(void) G_GNUC_CONST;
+GType xfdashboard_clock_view_settings_get_type(void);
 
 XfdashboardClockViewSettings* xfdashboard_clock_view_settings_new(void);
 

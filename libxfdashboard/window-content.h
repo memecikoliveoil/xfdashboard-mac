@@ -64,7 +64,7 @@ struct _XfdashboardWindowContentClass
 };
 
 /* Public API */
-GType xfdashboard_window_content_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_content_get_type(void);
 
 G_END_DECLS
 

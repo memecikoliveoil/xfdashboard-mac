@@ -107,7 +107,7 @@ typedef enum /*< prefix=XFDASHBOARD_THEME_ERROR >*/
 
 
 /* Public API */
-GType xfdashboard_theme_get_type(void) G_GNUC_CONST;
+GType xfdashboard_theme_get_type(void);
 
 XfdashboardTheme* xfdashboard_theme_new(const gchar *inThemeName);
 

@@ -85,7 +85,7 @@ struct _XfdashboardSearchProviderClass
 };
 
 /* Public API */
-GType xfdashboard_search_provider_get_type(void) G_GNUC_CONST;
+GType xfdashboard_search_provider_get_type(void);
 
 const gchar* xfdashboard_search_provider_get_id(XfdashboardSearchProvider *self);
 gboolean xfdashboard_search_provider_has_id(XfdashboardSearchProvider *self, const gchar *inID);

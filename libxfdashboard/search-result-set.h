@@ -64,7 +64,7 @@ struct _XfdashboardSearchResultSetClass
 };
 
 /* Public API */
-GType xfdashboard_search_result_set_get_type(void) G_GNUC_CONST;
+GType xfdashboard_search_result_set_get_type(void);
 
 XfdashboardSearchResultSet* xfdashboard_search_result_set_new(void);
 

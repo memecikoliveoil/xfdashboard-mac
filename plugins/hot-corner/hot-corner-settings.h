@@ -37,7 +37,7 @@ typedef enum /*< prefix=XFDASHBOARD_HOT_CORNER_SETTINGS_ACTIVATION_CORNER >*/
 	XFDASHBOARD_HOT_CORNER_SETTINGS_ACTIVATION_CORNER_BOTTOM_RIGHT,
 } XfdashboardHotCornerSettingsActivationCorner;
 
-GType xfdashboard_hot_corner_settings_activation_corner_get_type(void) G_GNUC_CONST;
+GType xfdashboard_hot_corner_settings_activation_corner_get_type(void);
 #define XFDASHBOARD_TYPE_HOT_CORNER_SETTINGS_ACTIVATION_CORNER	(xfdashboard_hot_corner_settings_activation_corner_get_type())
 
 
@@ -70,7 +70,7 @@ struct _XfdashboardHotCornerSettingsClass
 };
 
 /* Public API */
-GType xfdashboard_hot_corner_settings_get_type(void) G_GNUC_CONST;
+GType xfdashboard_hot_corner_settings_get_type(void);
 
 XFDASHBOARD_DECLARE_PLUGIN_TYPE(xfdashboard_hot_corner_settings);
 

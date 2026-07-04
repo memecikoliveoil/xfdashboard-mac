@@ -84,7 +84,7 @@ enum
 	XFDASHBOARD_APPLICATIONS_MENU_MODEL_COLUMN_LAST
 };
 
-GType xfdashboard_applications_menu_model_get_type(void) G_GNUC_CONST;
+GType xfdashboard_applications_menu_model_get_type(void);
 
 XfdashboardModel* xfdashboard_applications_menu_model_new(void);
 

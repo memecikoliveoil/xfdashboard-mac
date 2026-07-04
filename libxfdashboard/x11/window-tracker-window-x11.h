@@ -73,7 +73,7 @@ struct _XfdashboardWindowTrackerWindowX11Class
 };
 
 /* Public API */
-GType xfdashboard_window_tracker_window_x11_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_tracker_window_x11_get_type(void);
 
 WnckWindow* xfdashboard_window_tracker_window_x11_get_window(XfdashboardWindowTrackerWindowX11 *self);
 gulong xfdashboard_window_tracker_window_x11_get_xid(XfdashboardWindowTrackerWindowX11 *self);

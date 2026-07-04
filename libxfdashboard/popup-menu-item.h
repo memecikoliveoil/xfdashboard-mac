@@ -62,7 +62,7 @@ struct _XfdashboardPopupMenuItemInterface
 };
 
 /* Public API */
-GType xfdashboard_popup_menu_item_get_type(void) G_GNUC_CONST;
+GType xfdashboard_popup_menu_item_get_type(void);
 
 gboolean xfdashboard_popup_menu_item_get_enabled(XfdashboardPopupMenuItem *self);
 void xfdashboard_popup_menu_item_set_enabled(XfdashboardPopupMenuItem *self, gboolean inEnabled);

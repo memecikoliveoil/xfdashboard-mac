@@ -117,8 +117,8 @@ typedef gint (*XfdashboardModelSortFunc)(XfdashboardModelIter *inLeftIter,
 typedef gboolean (*XfdashboardModelFilterFunc)(XfdashboardModelIter *inIter,
 												gpointer inUserData);
 
-GType xfdashboard_model_get_type(void) G_GNUC_CONST;
-GType xfdashboard_model_iter_get_type(void) G_GNUC_CONST;
+GType xfdashboard_model_get_type(void);
+GType xfdashboard_model_iter_get_type(void);
 
 /* Model creation functions */
 XfdashboardModel* xfdashboard_model_new(void);

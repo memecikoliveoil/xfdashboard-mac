@@ -77,7 +77,7 @@ struct _XfdashboardApplicationsSearchProviderClass
 
 
 /* Public API */
-GType xfdashboard_applications_search_provider_get_type(void) G_GNUC_CONST;
+GType xfdashboard_applications_search_provider_get_type(void);
 
 XfdashboardApplicationsSearchProviderSortMode xfdashboard_applications_search_provider_get_sort_mode(XfdashboardApplicationsSearchProvider *self);
 void xfdashboard_applications_search_provider_set_sort_mode(XfdashboardApplicationsSearchProvider *self, const XfdashboardApplicationsSearchProviderSortMode inMode);

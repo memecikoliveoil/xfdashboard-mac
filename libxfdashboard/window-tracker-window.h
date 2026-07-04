@@ -146,7 +146,7 @@ struct _XfdashboardWindowTrackerWindowInterface
 };
 
 /* Public API */
-GType xfdashboard_window_tracker_window_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_tracker_window_get_type(void);
 
 gboolean xfdashboard_window_tracker_window_is_equal(XfdashboardWindowTrackerWindow *inLeft,
 													XfdashboardWindowTrackerWindow *inRight);

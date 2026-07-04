@@ -63,7 +63,7 @@ struct _XfdashboardEmblemEffectClass
 };
 
 /* Public API */
-GType xfdashboard_emblem_effect_get_type(void) G_GNUC_CONST;
+GType xfdashboard_emblem_effect_get_type(void);
 
 ClutterEffect* xfdashboard_emblem_effect_new(void);
 

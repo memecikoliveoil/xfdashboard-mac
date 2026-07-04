@@ -105,7 +105,7 @@ typedef enum /*< prefix=XFDASHBOARD_THEME_ANIMATION_ERROR >*/
 } XfdashboardThemeAnimationError;
 
 /* Public API */
-GType xfdashboard_theme_animation_get_type(void) G_GNUC_CONST;
+GType xfdashboard_theme_animation_get_type(void);
 
 XfdashboardThemeAnimation* xfdashboard_theme_animation_new(void);
 

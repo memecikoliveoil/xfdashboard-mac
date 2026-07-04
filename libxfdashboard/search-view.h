@@ -79,7 +79,7 @@ struct _XfdashboardSearchViewClass
 };
 
 /* Public API */
-GType xfdashboard_search_view_get_type(void) G_GNUC_CONST;
+GType xfdashboard_search_view_get_type(void);
 
 void xfdashboard_search_view_reset_search(XfdashboardSearchView *self);
 void xfdashboard_search_view_update_search(XfdashboardSearchView *self, const gchar *inSearchString);

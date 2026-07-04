@@ -66,7 +66,7 @@ typedef struct _XfdashboardGradientColor					XfdashboardGradientColor;
 
 
 /* Public API (XfdashboardGradientColor) */
-GType xfdashboard_gradient_color_get_type(void) G_GNUC_CONST;
+GType xfdashboard_gradient_color_get_type(void);
 
 /* Creation functions */
 XfdashboardGradientColor* xfdashboard_gradient_color_new_solid(const ClutterColor *inColor);

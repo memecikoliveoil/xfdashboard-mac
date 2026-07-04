@@ -72,7 +72,7 @@ struct _XfdashboardSearchResultContainerClass
 };
 
 /* Public API */
-GType xfdashboard_search_result_container_get_type(void) G_GNUC_CONST;
+GType xfdashboard_search_result_container_get_type(void);
 
 ClutterActor* xfdashboard_search_result_container_new(XfdashboardSearchProvider *inProvider);
 

@@ -66,7 +66,7 @@ struct _XfdashboardTooltipActionClass
 };
 
 /* Public API */
-GType xfdashboard_tooltip_action_get_type(void) G_GNUC_CONST;
+GType xfdashboard_tooltip_action_get_type(void);
 
 ClutterAction* xfdashboard_tooltip_action_new(void);
 

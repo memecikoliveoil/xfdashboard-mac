@@ -118,7 +118,7 @@ struct _XfdashboardClickActionClass
 };
 
 /* Public API */
-GType xfdashboard_click_action_get_type(void) G_GNUC_CONST;
+GType xfdashboard_click_action_get_type(void);
 
 ClutterAction* xfdashboard_click_action_new(void);
 

@@ -75,7 +75,7 @@ struct _XfdashboardPopupMenuItemSeparatorClass
 };
 
 /* Public API */
-GType xfdashboard_popup_menu_item_separator_get_type(void) G_GNUC_CONST;
+GType xfdashboard_popup_menu_item_separator_get_type(void);
 
 ClutterActor* xfdashboard_popup_menu_item_separator_new(void);
 

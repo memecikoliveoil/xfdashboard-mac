@@ -75,7 +75,7 @@ struct _XfdashboardActionButtonClass
 };
 
 /* Public API */
-GType xfdashboard_action_button_get_type(void) G_GNUC_CONST;
+GType xfdashboard_action_button_get_type(void);
 
 ClutterActor* xfdashboard_action_button_new(void);
 

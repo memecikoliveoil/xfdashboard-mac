@@ -57,7 +57,7 @@ struct _XfdashboardRecentlyUsedSearchProviderClass
 };
 
 /* Public API */
-GType xfdashboard_recently_used_search_provider_get_type(void) G_GNUC_CONST;
+GType xfdashboard_recently_used_search_provider_get_type(void);
 void xfdashboard_recently_used_search_provider_type_register(GTypeModule *inModule);
 
 XFDASHBOARD_DECLARE_PLUGIN_TYPE(xfdashboard_recently_used_search_provider);

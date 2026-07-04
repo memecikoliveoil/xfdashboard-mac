@@ -75,7 +75,7 @@ typedef enum /*< prefix=XFDASHBOARD_IMAGE_CONTENT_LOADING_STATE >*/
 	XFDASHBOARD_IMAGE_CONTENT_LOADING_STATE_LOADED_FAILED
 } XfdashboardImageContentLoadingState;
 
-GType xfdashboard_image_content_get_type(void) G_GNUC_CONST;
+GType xfdashboard_image_content_get_type(void);
 
 ClutterContent* xfdashboard_image_content_new_for_icon_name(const gchar *inIconName, gint inSize);
 ClutterContent* xfdashboard_image_content_new_for_gicon(GIcon *inIcon, gint inSize);

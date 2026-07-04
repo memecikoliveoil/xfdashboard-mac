@@ -69,7 +69,7 @@ struct _XfdashboardApplicationButtonClass
 };
 
 /* Public API */
-GType xfdashboard_application_button_get_type(void) G_GNUC_CONST;
+GType xfdashboard_application_button_get_type(void);
 
 ClutterActor* xfdashboard_application_button_new(void);
 ClutterActor* xfdashboard_application_button_new_from_app_info(GAppInfo *inAppInfo);

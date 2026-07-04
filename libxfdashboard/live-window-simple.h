@@ -87,7 +87,7 @@ struct _XfdashboardLiveWindowSimpleClass
 };
 
 /* Public API */
-GType xfdashboard_live_window_simple_get_type(void) G_GNUC_CONST;
+GType xfdashboard_live_window_simple_get_type(void);
 
 ClutterActor* xfdashboard_live_window_simple_new(void);
 ClutterActor* xfdashboard_live_window_simple_new_for_window(XfdashboardWindowTrackerWindow *inWindow);

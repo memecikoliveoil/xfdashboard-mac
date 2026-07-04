@@ -61,7 +61,7 @@ struct _XfdashboardSettingsThemesClass
 };
 
 /* Public API */
-GType xfdashboard_settings_themes_get_type(void) G_GNUC_CONST;
+GType xfdashboard_settings_themes_get_type(void);
 
 XfdashboardSettingsThemes* xfdashboard_settings_themes_new(XfdashboardSettingsApp *inApp);
 

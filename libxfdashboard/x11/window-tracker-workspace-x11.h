@@ -73,7 +73,7 @@ struct _XfdashboardWindowTrackerWorkspaceX11Class
 };
 
 /* Public API */
-GType xfdashboard_window_tracker_workspace_x11_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_tracker_workspace_x11_get_type(void);
 
 WnckWorkspace* xfdashboard_window_tracker_workspace_x11_get_workspace(XfdashboardWindowTrackerWorkspaceX11 *self);
 

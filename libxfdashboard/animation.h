@@ -112,7 +112,7 @@ typedef enum /*< prefix=XFDASHBOARD_ANIMATION_CREATE_FLAG >*/
 
 
 /* Public API */
-GType xfdashboard_animation_get_type(void) G_GNUC_CONST;
+GType xfdashboard_animation_get_type(void);
 
 XfdashboardAnimation* xfdashboard_animation_new(XfdashboardActor *inSender,
 												const gchar *inSignal,

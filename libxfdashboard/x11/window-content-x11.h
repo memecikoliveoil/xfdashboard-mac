@@ -68,7 +68,7 @@ struct _XfdashboardWindowContentX11Class
 };
 
 /* Public API */
-GType xfdashboard_window_content_x11_get_type(void) G_GNUC_CONST;
+GType xfdashboard_window_content_x11_get_type(void);
 
 ClutterContent* xfdashboard_window_content_x11_new_for_window(XfdashboardWindowTrackerWindowX11 *inWindow);
 

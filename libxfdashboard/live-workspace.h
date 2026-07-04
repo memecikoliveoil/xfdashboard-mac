@@ -70,7 +70,7 @@ struct _XfdashboardLiveWorkspaceClass
 };
 
 /* Public API */
-GType xfdashboard_live_workspace_get_type(void) G_GNUC_CONST;
+GType xfdashboard_live_workspace_get_type(void);
 
 ClutterActor* xfdashboard_live_workspace_new(void);
 ClutterActor* xfdashboard_live_workspace_new_for_workspace(XfdashboardWindowTrackerWorkspace *inWorkspace);

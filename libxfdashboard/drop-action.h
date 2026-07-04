@@ -74,7 +74,7 @@ struct _XfdashboardDropActionClass
 };
 
 /* Public API */
-GType xfdashboard_drop_action_get_type(void) G_GNUC_CONST;
+GType xfdashboard_drop_action_get_type(void);
 
 ClutterAction* xfdashboard_drop_action_new();
 

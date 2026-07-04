@@ -63,7 +63,7 @@ struct _XfdashboardFillBoxLayoutClass
 };
 
 /* Public API */
-GType xfdashboard_fill_box_layout_get_type(void) G_GNUC_CONST;
+GType xfdashboard_fill_box_layout_get_type(void);
 
 ClutterLayoutManager* xfdashboard_fill_box_layout_new(void);
 ClutterLayoutManager* xfdashboard_fill_box_layout_new_with_orientation(ClutterOrientation inOrientation);

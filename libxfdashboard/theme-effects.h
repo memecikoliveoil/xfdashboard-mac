@@ -99,7 +99,7 @@ typedef enum /*< prefix=XFDASHBOARD_THEME_EFFECTS_ERROR >*/
 } XfdashboardThemeEffectsError;
 
 /* Public API */
-GType xfdashboard_theme_effects_get_type(void) G_GNUC_CONST;
+GType xfdashboard_theme_effects_get_type(void);
 
 XfdashboardThemeEffects* xfdashboard_theme_effects_new(void);
 
