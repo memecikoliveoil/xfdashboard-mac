@@ -5,16 +5,17 @@
 # 
 # Translators:
 # Charles Monzat <c.monzat@laposte.net>, 2020
-# roxfr <roxfr@outlook.fr>, 2020
+# roxfr, 2020
 # Urien Desterres <urien.desterres@gmail.com>, 2021
 # David MARMONT <it@marmont.fr>, 2024
-# Luclu7 <theluc7andcompagnie@gmail.com>, 2024
+# Lucie <theluc7andcompagnie@gmail.com>, 2024
 # Yannick Le Guen <leguen.yannick@gmail.com>, 2024
 # Nick Schermer <nick@xfce.org>, 2024
 # jc1 <jc1.quebecos@gmail.com>, 2024
 # Ldm Public <ldmpub@gmail.com>, 2024
 # Xfce Bot <transifex@xfce.org>, 2024
-# Wallon Wallon, 2024
+# Wallon <wallon@ik.me>, 2024
+# David D, 2026
 # 
 #, fuzzy
 msgid ""
@@ -23,7 +24,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: https://gitlab.xfce.org/\n"
 "POT-Creation-Date: 2024-06-23 12:51+0200\n"
 "PO-Revision-Date: 2020-10-07 10:59+0000\n"
-"Last-Translator: Wallon Wallon, 2024\n"
+"Last-Translator: David D, 2026\n"
 "Language-Team: French (https://app.transifex.com/xfce/teams/16840/fr/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -108,7 +109,7 @@ msgstr ""
 
 #: data/data/preferences.ui:216
 msgid "<b>General settings:</b>"
-msgstr "<b>Paramètres généraux :</b>"
+msgstr "<b>Paramètres généraux :</b>"
 
 #: data/data/preferences.ui:228
 msgid "Reset search view when resumed"
@@ -454,7 +455,7 @@ msgstr "Bienvenue à %s !"
 
 #: libxfdashboard/quicklaunch.c:384
 msgid "No windows to activate for application"
-msgstr "Pas de fenêtres pour activer pour l’application"
+msgstr "Pas de fenêtres à activer pour l’application"
 
 #: libxfdashboard/quicklaunch.c:507 libxfdashboard/quicklaunch.c:1243
 #: libxfdashboard/quicklaunch.c:2053
@@ -470,7 +471,7 @@ msgstr "Favori « %s » ajouté"
 
 #: libxfdashboard/quicklaunch.c:687
 msgid "Remove from favourites"
-msgstr "Supprimer des favoris"
+msgstr "Retirer des favoris"
 
 #: libxfdashboard/quicklaunch.c:701
 msgid "Add to favourites"
@@ -480,7 +481,7 @@ msgstr "Ajouter aux favoris"
 #. target
 #: libxfdashboard/quicklaunch.c:3232
 msgid "Remove"
-msgstr "Supprimer"
+msgstr "Retirer"
 
 #: libxfdashboard/search-result-container.c:664
 #: libxfdashboard/search-result-container.c:1734
@@ -777,7 +778,7 @@ msgstr "L’ID de la vue pour passer au démarrage ou à la reprise"
 
 #: xfdashboard/application.c:483
 msgid "Show version"
-msgstr "Afficher la version"
+msgstr "Afficher version"
 
 #: xfdashboard/application.c:503
 #, c-format
