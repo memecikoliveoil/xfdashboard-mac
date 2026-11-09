@@ -42,6 +42,20 @@ G_BEGIN_DECLS
 #define XFDASHBOARD_IS_OUTLINE_EFFECT_CLASS(klass)	(G_TYPE_CHECK_CLASS_TYPE((klass), XFDASHBOARD_TYPE_OUTLINE_EFFECT))
 #define XFDASHBOARD_OUTLINE_EFFECT_GET_CLASS(obj)	(G_TYPE_INSTANCE_GET_CLASS((obj), XFDASHBOARD_TYPE_OUTLINE_EFFECT, XfdashboardOutlineEffectClass))
 
+/* An actor can tell the outline effect the exact shape it should wrap: a box
+ * in the actor's coordinates and the corner radius of that box (radius<0 means
+ * use the configured radius). The outline is then drawn concentric around it.
+ * Set with g_object_set_data() on the actor using this key.
+ */
+#define XFDASHBOARD_OUTLINE_EFFECT_INNER_SHAPE_KEY		"xfdashboard-outline-inner-shape"
+
+typedef struct _XfdashboardOutlineInnerShape		XfdashboardOutlineInnerShape;
+struct _XfdashboardOutlineInnerShape
+{
+	gfloat		x, y, width, height;
+	gfloat		radius;
+};
+
 typedef struct _XfdashboardOutlineEffect			XfdashboardOutlineEffect;
 typedef struct _XfdashboardOutlineEffectClass		XfdashboardOutlineEffectClass;
 typedef struct _XfdashboardOutlineEffectPrivate		XfdashboardOutlineEffectPrivate;
@@ -73,6 +87,9 @@ void xfdashboard_outline_effect_set_color(XfdashboardOutlineEffect *self, const 
 
 gfloat xfdashboard_outline_effect_get_width(XfdashboardOutlineEffect *self);
 void xfdashboard_outline_effect_set_width(XfdashboardOutlineEffect *self, const gfloat inWidth);
+
+/* Draw outline this many pixels outside of the actor's allocation (0 = inside) */
+void xfdashboard_outline_effect_set_outset(XfdashboardOutlineEffect *self, const gfloat inOutset);
 
 XfdashboardBorders xfdashboard_outline_effect_get_borders(XfdashboardOutlineEffect *self);
 void xfdashboard_outline_effect_set_borders(XfdashboardOutlineEffect *self, const XfdashboardBorders inBorders);

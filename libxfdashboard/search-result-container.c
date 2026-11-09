@@ -27,7 +27,10 @@
 #endif
 
 #include <libxfdashboard/search-result-container.h>
+#include <libxfdashboard/focusable.h>
+#include <libxfdashboard/view.h>
 
+#include <libxfdashboard/viewpad.h>
 #include <glib/gi18n-lib.h>
 #include <gdk/gdk.h>
 #include <math.h>
@@ -111,6 +114,28 @@ enum
 };
 
 static guint XfdashboardSearchResultContainerSignals[SIGNAL_LAST]={ 0, };
+
+/* Pointer entered a result item: make it the selection of the search view */
+static gboolean _xfdashboard_search_result_container_on_item_enter(ClutterActor *inActor, ClutterEvent *inEvent, gpointer inUserData)
+{
+	ClutterActor		*view;
+
+	if(xfdashboard_viewpad_is_scrolling()) return(CLUTTER_EVENT_PROPAGATE);
+
+	for(view=clutter_actor_get_parent(inActor); view; view=clutter_actor_get_parent(view))
+	{
+		if(XFDASHBOARD_IS_FOCUSABLE(view) && XFDASHBOARD_IS_VIEW(view)) break;
+	}
+	if(!view) return(CLUTTER_EVENT_PROPAGATE);
+
+	if(xfdashboard_focusable_get_selection(XFDASHBOARD_FOCUSABLE(view))!=inActor)
+	{
+		g_object_set_data(G_OBJECT(view), "xfdashboard-select-by-pointer", GINT_TO_POINTER(1));
+		xfdashboard_focusable_set_selection(XFDASHBOARD_FOCUSABLE(view), inActor);
+		g_object_set_data(G_OBJECT(view), "xfdashboard-select-by-pointer", NULL);
+	}
+	return(CLUTTER_EVENT_PROPAGATE);
+}
 
 /* IMPLEMENTATION: Private variables and methods */
 #define DEFAULT_VIEW_MODE				XFDASHBOARD_VIEW_MODE_LIST
@@ -638,6 +663,13 @@ static void _xfdashboard_search_result_container_update_result_items(Xfdashboard
 					/* Add newly created actor to container of provider */
 					if(!lastActor) clutter_actor_insert_child_below(priv->itemsContainer, actor, NULL);
 						else clutter_actor_insert_child_above(priv->itemsContainer, actor, lastActor);
+
+					/* Selection follows pointer, so only one item is highlighted */
+					if(XFDASHBOARD_IS_ACTOR(actor) || CLUTTER_IS_ACTOR(actor))
+					{
+						g_object_set_data(G_OBJECT(actor), "xfdashboard-no-hover", GINT_TO_POINTER(1));
+						g_signal_connect(actor, "enter-event", G_CALLBACK(_xfdashboard_search_result_container_on_item_enter), NULL);
+					}
 
 					/* Add actor to mapping hash table for result item */
 					g_hash_table_insert(priv->mapping, g_variant_ref(resultItem), g_object_ref(actor));

@@ -47,6 +47,7 @@
 #include <clutter/x11/clutter-x11.h>
 #include <gtk/gtkx.h>
 #include <gdk/gdkx.h>
+#include <X11/Xatom.h>
 #ifdef HAVE_XINERAMA
 #include <X11/extensions/Xinerama.h>
 #endif
@@ -1300,8 +1301,52 @@ static void _xfdashboard_window_tracker_window_x11_window_tracker_window_get_geo
 		return;
 	}
 
-	/* Get window geometry */
-	wnck_window_get_client_window_geometry(priv->window, &x, &y, &width, &height);
+	/* Get window geometry including the frame of the window manager, because
+	 * live window previews show the window with its frame (titlebar).
+	 */
+	wnck_window_get_geometry(priv->window, &x, &y, &width, &height);
+
+	/* Exclude the invisible shadow margin of GTK client-side decorated windows
+	 * (_GTK_FRAME_EXTENTS: left, right, top, bottom) so previews are laid out
+	 * by the visible window size.
+	 */
+	{
+		Display									*display;
+		Atom									atomFrameExtents;
+		Atom									actualType;
+		int										actualFormat;
+		unsigned long							numberItems;
+		unsigned long							bytesRemaining;
+		unsigned char							*data=NULL;
+
+		display=GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
+		atomFrameExtents=XInternAtom(display, "_GTK_FRAME_EXTENTS", False);
+		if(XGetWindowProperty(display,
+								wnck_window_get_xid(priv->window),
+								atomFrameExtents,
+								0, 4,
+								False,
+								XA_CARDINAL,
+								&actualType,
+								&actualFormat,
+								&numberItems,
+								&bytesRemaining,
+								&data)==Success &&
+			data && actualFormat==32 && numberItems==4)
+		{
+			long	*extents=(long*)data;
+
+			if(extents[0]>=0 && extents[1]>=0 && extents[2]>=0 && extents[3]>=0 &&
+				extents[0]+extents[1]<width && extents[2]+extents[3]<height)
+			{
+				x+=extents[0];
+				y+=extents[2];
+				width-=extents[0]+extents[1];
+				height-=extents[2]+extents[3];
+			}
+		}
+		if(data) XFree(data);
+	}
 
 	/* Set result */
 	if(outX) *outX=x;

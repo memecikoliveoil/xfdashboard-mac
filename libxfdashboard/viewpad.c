@@ -284,6 +284,14 @@ static void _xfdashboard_viewpad_activate_view(XfdashboardViewpad *self, Xfdashb
 		g_signal_emit_by_name(priv->activeView, "deactivated");
 		g_signal_emit(self, XfdashboardViewpadSignals[SIGNAL_VIEW_DEACTIVATED], 0, priv->activeView);
 
+		/* Remove style class telling which view is active */
+		{
+			gchar		*styleClass=g_strdup_printf("active-%s", G_OBJECT_TYPE_NAME(priv->activeView));
+
+			xfdashboard_stylable_remove_class(XFDASHBOARD_STYLABLE(self), styleClass);
+			g_free(styleClass);
+		}
+
 		g_object_unref(priv->activeView);
 		priv->activeView=NULL;
 	}
@@ -297,6 +305,31 @@ static void _xfdashboard_viewpad_activate_view(XfdashboardViewpad *self, Xfdashb
 	if(inView)
 	{
 		priv->activeView=g_object_ref(inView);
+
+		/* Applications and search view need room at top for the search box
+		 * (it floats there); windows view uses all space
+		 */
+		{
+			gfloat		top=GPOINTER_TO_INT(g_object_get_data(G_OBJECT(self), "xfdashboard-search-margin"));
+
+			if(top<=0.0f) top=60.0f;
+			if(g_strcmp0(G_OBJECT_TYPE_NAME(priv->activeView), "XfdashboardSearchView")==0 ||
+				g_strcmp0(G_OBJECT_TYPE_NAME(priv->activeView), "XfdashboardApplicationsView")==0)
+			{
+				clutter_actor_set_margin_top(CLUTTER_ACTOR(self), top);
+			}
+				else clutter_actor_set_margin_top(CLUTTER_ACTOR(self), 8.0f);
+		}
+
+		/* Let themes style the viewpad depending on active view,
+		 * e.g. "#viewpad.active-XfdashboardSearchView"
+		 */
+		{
+			gchar		*styleClass=g_strdup_printf("active-%s", G_OBJECT_TYPE_NAME(priv->activeView));
+
+			xfdashboard_stylable_add_class(XFDASHBOARD_STYLABLE(self), styleClass);
+			g_free(styleClass);
+		}
 
 		g_signal_emit(self, XfdashboardViewpadSignals[SIGNAL_VIEW_ACTIVATING], 0, priv->activeView);
 		g_signal_emit_by_name(priv->activeView, "activating");
@@ -810,10 +843,97 @@ static void _xfdashboard_viewpad_on_view_unregistered(XfdashboardViewpad *self,
 /* Scroll event happened at this actor because it was not handled
  * with any child actor
  */
+/* Time of last scrolling: while scrolling, items moving under the pointer
+ * should not become selected (that restyles them and makes scrolling stutter)
+ */
+static gint64 _xfdashboard_viewpad_last_scroll_time=0;
+
+gboolean xfdashboard_viewpad_is_scrolling(void)
+{
+	return((g_get_monotonic_time()-_xfdashboard_viewpad_last_scroll_time)<300000);
+}
+
+/* While scrolling, grab the pointer like dragging the scrollbar does: then
+ * scroll events go straight to the viewpad and Clutter does not have to find
+ * the actor under the pointer for every single event (expensive "pick"
+ * which made touchpad and wheel scrolling stutter). The grab ends shortly
+ * after the last scroll event or as soon as the pointer moves or clicks.
+ */
+static guint			_xfdashboard_viewpad_scroll_grab_timeout=0;
+static ClutterActor		*_xfdashboard_viewpad_scroll_grab_actor=NULL;
+
+static void _xfdashboard_viewpad_scroll_grab_end(void)
+{
+	if(_xfdashboard_viewpad_scroll_grab_timeout)
+	{
+		g_source_remove(_xfdashboard_viewpad_scroll_grab_timeout);
+		_xfdashboard_viewpad_scroll_grab_timeout=0;
+	}
+
+	if(_xfdashboard_viewpad_scroll_grab_actor)
+	{
+		if(clutter_get_pointer_grab()==_xfdashboard_viewpad_scroll_grab_actor) clutter_ungrab_pointer();
+		g_object_remove_weak_pointer(G_OBJECT(_xfdashboard_viewpad_scroll_grab_actor), (gpointer*)&_xfdashboard_viewpad_scroll_grab_actor);
+		_xfdashboard_viewpad_scroll_grab_actor=NULL;
+	}
+}
+
+static gboolean _xfdashboard_viewpad_scroll_grab_on_timeout(gpointer inUserData)
+{
+	_xfdashboard_viewpad_scroll_grab_timeout=0;
+	_xfdashboard_viewpad_scroll_grab_end();
+	return(G_SOURCE_REMOVE);
+}
+
+static gboolean _xfdashboard_viewpad_on_grabbed_event(ClutterActor *inActor, ClutterEvent *inEvent, gpointer inUserData)
+{
+	ClutterEventType	type;
+
+	if(_xfdashboard_viewpad_scroll_grab_actor!=inActor) return(CLUTTER_EVENT_PROPAGATE);
+
+	/* Any pointer action other than scrolling ends the grab; the event is
+	 * then handled normally by the actor under the pointer
+	 */
+	type=clutter_event_type(inEvent);
+	if(type==CLUTTER_MOTION || type==CLUTTER_BUTTON_PRESS || type==CLUTTER_BUTTON_RELEASE)
+	{
+		_xfdashboard_viewpad_scroll_grab_end();
+
+		/* Re-queue clicks so they go through normal picking and reach
+		 * the actor under the pointer (with its click actions)
+		 */
+		if(type!=CLUTTER_MOTION)
+		{
+			ClutterEvent	*copy;
+
+			copy=clutter_event_copy(inEvent);
+			clutter_event_put(copy);
+			clutter_event_free(copy);
+			return(CLUTTER_EVENT_STOP);
+		}
+	}
+	return(CLUTTER_EVENT_PROPAGATE);
+}
+
 static gboolean _xfdashboard_viewpad_on_scroll_event(ClutterActor *inActor,
 														ClutterEvent *inEvent,
 														gpointer inUserData)
 {
+	/* Keep pointer grabbed while scrolling */
+	if(clutter_get_pointer_grab()==NULL || clutter_get_pointer_grab()==inActor)
+	{
+		if(!_xfdashboard_viewpad_scroll_grab_actor)
+		{
+			_xfdashboard_viewpad_scroll_grab_actor=inActor;
+			g_object_add_weak_pointer(G_OBJECT(inActor), (gpointer*)&_xfdashboard_viewpad_scroll_grab_actor);
+			clutter_grab_pointer(inActor);
+		}
+		if(_xfdashboard_viewpad_scroll_grab_timeout) g_source_remove(_xfdashboard_viewpad_scroll_grab_timeout);
+		_xfdashboard_viewpad_scroll_grab_timeout=g_timeout_add(250, _xfdashboard_viewpad_scroll_grab_on_timeout, NULL);
+	}
+
+	_xfdashboard_viewpad_last_scroll_time=g_get_monotonic_time();
+
 	XfdashboardViewpad				*self;
 	XfdashboardViewpadPrivate		*priv;
 	gboolean						result;
@@ -1002,10 +1122,22 @@ static void _xfdashboard_viewpad_allocate(ClutterActor *self,
 		}
 
 		box=clutter_actor_box_new(0, 0, w, h);
+		clutter_actor_box_clamp_to_pixel(box);
 		clutter_actor_allocate(CLUTTER_ACTOR(priv->activeView), box, inFlags);
 		clutter_actor_box_free(box);
 
-		clutter_actor_set_clip(CLUTTER_ACTOR(priv->activeView), x, y, viewWidth, viewHeight);
+		/* A view filling the viewpad completely does not scroll, so it needs
+		 * no clipping. Without clip, decorations drawn slightly outside of
+		 * its children (e.g. outline of hovered window) are not cut off.
+		 */
+		if(xfdashboard_view_get_view_fit_mode(XFDASHBOARD_VIEW(priv->activeView))==XFDASHBOARD_VIEW_FIT_MODE_BOTH)
+		{
+			clutter_actor_remove_clip(CLUTTER_ACTOR(priv->activeView));
+		}
+			else
+			{
+				clutter_actor_set_clip(CLUTTER_ACTOR(priv->activeView), x, y, viewWidth, viewHeight);
+			}
 	}
 
 	/* Only set value if it changes */
@@ -1378,6 +1510,7 @@ static void xfdashboard_viewpad_init(XfdashboardViewpad *self)
 	/* Set up this actor */
 	clutter_actor_set_reactive(CLUTTER_ACTOR(self), TRUE);
 	g_signal_connect(self, "scroll-event", G_CALLBACK(_xfdashboard_viewpad_on_scroll_event), NULL);
+	g_signal_connect(self, "captured-event", G_CALLBACK(_xfdashboard_viewpad_on_grabbed_event), NULL);
 
 	/* Set up child actors */
 	priv->hScrollbar=xfdashboard_scrollbar_new(CLUTTER_ORIENTATION_HORIZONTAL);

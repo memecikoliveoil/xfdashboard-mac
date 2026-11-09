@@ -34,6 +34,8 @@
 #include <libxfdashboard/scaled-table-layout.h>
 #include <libxfdashboard/stage.h>
 #include <libxfdashboard/core.h>
+#include <libxfdashboard/focus-manager.h>
+#include <libxfdashboard/x11/window-content-x11.h>
 #include <libxfdashboard/view.h>
 #include <libxfdashboard/drop-action.h>
 #include <libxfdashboard/quicklaunch.h>
@@ -72,6 +74,9 @@ struct _XfdashboardWindowsViewPrivate
 
 	gboolean							filterMonitorWindows;
 	gboolean							filterWorkspaceWindows;
+	gboolean							hideMinimizedWindows;
+	gboolean							animateEntry;
+	gint								entryTries;
 	XfdashboardStageInterface			*currentStage;
 	XfdashboardWindowTrackerMonitor		*currentMonitor;
 	guint								currentStageMonitorBindingID;
@@ -94,6 +99,7 @@ enum
 	PROP_SCROLL_EVENT_CHANGES_WORKSPACE,
 	PROP_FILTER_MONITOR_WINDOWS,
 	PROP_FILTER_WORKSPACE_WINDOWS,
+	PROP_HIDE_MINIMIZED_WINDOWS,
 
 	PROP_LAST
 };
@@ -222,6 +228,25 @@ static gboolean _xfdashboard_windows_view_is_visible_window(XfdashboardWindowsVi
 	if(state & XFDASHBOARD_WINDOW_TRACKER_WINDOW_STATE_SKIP_TASKLIST)
 	{
 		return(FALSE);
+	}
+
+	/* Minimized windows: hidden completely if requested, otherwise shown only
+	 * if a real image of the window is known (no blurry icon placeholders)
+	 */
+	if(state & XFDASHBOARD_WINDOW_TRACKER_WINDOW_STATE_MINIMIZED)
+	{
+		ClutterContent		*content;
+		gboolean			hasPreview=TRUE;
+
+		if(priv->hideMinimizedWindows) return(FALSE);
+
+		content=xfdashboard_window_tracker_window_get_content(inWindow);
+		if(content && XFDASHBOARD_IS_WINDOW_CONTENT_X11(content))
+		{
+			hasPreview=xfdashboard_window_content_x11_has_preview(XFDASHBOARD_WINDOW_CONTENT_X11(content));
+		}
+		if(content) g_object_unref(content);
+		if(!hasPreview) return(FALSE);
 	}
 
 	if(xfdashboard_window_tracker_window_is_stage(inWindow))
@@ -683,6 +708,69 @@ static void _xfdashboard_windows_view_on_active_workspace_changed(XfdashboardWin
 }
 
 /* A window was opened */
+/* A window was (un)minimized: show or hide its live window if minimized windows are hidden */
+static void _xfdashboard_windows_view_on_window_state_changed(XfdashboardWindowsView *self,
+																XfdashboardWindowTrackerWindow *inWindow,
+																gpointer inUserData)
+{
+	XfdashboardWindowsViewPrivate		*priv;
+	XfdashboardLiveWindow				*liveWindow;
+
+	g_return_if_fail(XFDASHBOARD_IS_WINDOWS_VIEW(self));
+	g_return_if_fail(XFDASHBOARD_IS_WINDOW_TRACKER_WINDOW(inWindow));
+
+	priv=self->priv;
+	(void)priv;
+
+	liveWindow=_xfdashboard_windows_view_find_by_window(self, inWindow);
+	if(liveWindow && !_xfdashboard_windows_view_is_visible_window(self, inWindow))
+	{
+		xfdashboard_actor_destroy(CLUTTER_ACTOR(liveWindow));
+	}
+		else if(!liveWindow && _xfdashboard_windows_view_is_visible_window(self, inWindow))
+		{
+			liveWindow=_xfdashboard_windows_view_create_actor(self, inWindow);
+			if(liveWindow)
+			{
+				clutter_actor_insert_child_below(CLUTTER_ACTOR(self), CLUTTER_ACTOR(liveWindow), NULL);
+				_xfdashboard_windows_view_update_window_number_in_actors(self);
+			}
+		}
+}
+
+/* Pointer entered a live window: make it the selection (only one highlight) */
+static gboolean _xfdashboard_windows_view_on_live_window_enter(ClutterActor *inActor, ClutterEvent *inEvent, gpointer inUserData)
+{
+	XfdashboardFocusable			*view=XFDASHBOARD_FOCUSABLE(inUserData);
+
+	/* Selection is only shown while the view has the focus: move focus to
+	 * the viewpad holding this view
+	 */
+	{
+		XfdashboardFocusManager		*focusManager=xfdashboard_core_get_focus_manager(NULL);
+		ClutterActor				*parent;
+
+		for(parent=clutter_actor_get_parent(CLUTTER_ACTOR(view)); parent; parent=clutter_actor_get_parent(parent))
+		{
+			if(XFDASHBOARD_IS_FOCUSABLE(parent) &&
+				xfdashboard_focus_manager_is_registered(focusManager, XFDASHBOARD_FOCUSABLE(parent)))
+			{
+				if(xfdashboard_focus_manager_get_focus(focusManager)!=XFDASHBOARD_FOCUSABLE(parent))
+				{
+					xfdashboard_focus_manager_set_focus(focusManager, XFDASHBOARD_FOCUSABLE(parent));
+				}
+				break;
+			}
+		}
+	}
+
+	if(xfdashboard_focusable_get_selection(view)!=inActor)
+	{
+		xfdashboard_focusable_set_selection(view, inActor);
+	}
+	return(CLUTTER_EVENT_PROPAGATE);
+}
+
 static void _xfdashboard_windows_view_on_window_opened(XfdashboardWindowsView *self,
 														XfdashboardWindowTrackerWindow *inWindow,
 														gpointer inUserData)
@@ -1019,6 +1107,7 @@ static XfdashboardLiveWindow* _xfdashboard_windows_view_create_actor(Xfdashboard
 	/* Create actor and connect signals */
 	actor=xfdashboard_live_window_new();
 	g_signal_connect_swapped(actor, "clicked", G_CALLBACK(_xfdashboard_windows_view_on_window_clicked), self);
+	g_signal_connect(actor, "enter-event", G_CALLBACK(_xfdashboard_windows_view_on_live_window_enter), self);
 	g_signal_connect_swapped(actor, "close", G_CALLBACK(_xfdashboard_windows_view_on_window_close_clicked), self);
 	g_signal_connect_swapped(actor, "geometry-changed", G_CALLBACK(_xfdashboard_windows_view_on_window_geometry_changed), self);
 	g_signal_connect_swapped(actor, "visibility-changed", G_CALLBACK(_xfdashboard_windows_view_on_window_visibility_changed), self);
@@ -1544,13 +1633,6 @@ static ClutterActor* _xfdashboard_windows_view_focusable_find_selection(Xfdashbo
 	XfdashboardWindowsViewPrivate			*priv;
 	ClutterActor							*selection;
 	ClutterActor							*newSelection;
-	gint									numberChildren;
-	gint									rows;
-	gint									columns;
-	gint									currentSelectionIndex;
-	gint									currentSelectionRow;
-	gint									currentSelectionColumn;
-	gint									newSelectionIndex;
 	ClutterActorIter						iter;
 	ClutterActor							*child;
 	gchar									*valueName;
@@ -1562,6 +1644,7 @@ static ClutterActor* _xfdashboard_windows_view_focusable_find_selection(Xfdashbo
 
 	self=XFDASHBOARD_WINDOWS_VIEW(inFocusable);
 	priv=self->priv;
+	(void)priv;
 	selection=inSelection;
 	newSelection=NULL;
 
@@ -1595,70 +1678,57 @@ static ClutterActor* _xfdashboard_windows_view_focusable_find_selection(Xfdashbo
 		return(NULL);
 	}
 
-	/* Get number of rows and columns and also get number of children
-	 * of layout manager.
+	/* Windows are packed in rows of different lengths, so arrow keys move
+	 * to the nearest window in that direction on screen (by window centers)
 	 */
-	numberChildren=xfdashboard_scaled_table_layout_get_number_children(XFDASHBOARD_SCALED_TABLE_LAYOUT(priv->layout));
-	rows=xfdashboard_scaled_table_layout_get_rows(XFDASHBOARD_SCALED_TABLE_LAYOUT(priv->layout));
-	columns=xfdashboard_scaled_table_layout_get_columns(XFDASHBOARD_SCALED_TABLE_LAYOUT(priv->layout));
-
-	/* Get index of current selection */
-	currentSelectionIndex=0;
-	clutter_actor_iter_init(&iter, CLUTTER_ACTOR(self));
-	while(clutter_actor_iter_next(&iter, &child) &&
-			child!=inSelection)
-	{
-		currentSelectionIndex++;
-	}
-
-	currentSelectionRow=(currentSelectionIndex / columns);
-	currentSelectionColumn=(currentSelectionIndex % columns);
-
-	/* Find target selection */
 	switch(inDirection)
 	{
 		case XFDASHBOARD_SELECTION_TARGET_LEFT:
-			currentSelectionColumn--;
-			if(currentSelectionColumn<0)
-			{
-				currentSelectionRow++;
-				newSelectionIndex=(currentSelectionRow*columns)-1;
-			}
-				else newSelectionIndex=currentSelectionIndex-1;
-
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
-			break;
-
 		case XFDASHBOARD_SELECTION_TARGET_RIGHT:
-			currentSelectionColumn++;
-			if(currentSelectionColumn==columns ||
-				currentSelectionIndex==numberChildren)
-			{
-				newSelectionIndex=(currentSelectionRow*columns);
-			}
-				else newSelectionIndex=currentSelectionIndex+1;
-
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
-			break;
-
 		case XFDASHBOARD_SELECTION_TARGET_UP:
-			currentSelectionRow--;
-			if(currentSelectionRow<0) currentSelectionRow=rows-1;
-			newSelectionIndex=(currentSelectionRow*columns)+currentSelectionColumn;
-
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
-			break;
-
 		case XFDASHBOARD_SELECTION_TARGET_DOWN:
-			currentSelectionRow++;
-			if(currentSelectionRow>=rows) currentSelectionRow=0;
-			newSelectionIndex=(currentSelectionRow*columns)+currentSelectionColumn;
+			{
+				ClutterActorBox				box;
+				gfloat						cx, cy, bestScore;
 
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
+				clutter_actor_get_allocation_box(inSelection, &box);
+				cx=(box.x1+box.x2)/2.0f;
+				cy=(box.y1+box.y2)/2.0f;
+				bestScore=G_MAXFLOAT;
+
+				clutter_actor_iter_init(&iter, CLUTTER_ACTOR(self));
+				while(clutter_actor_iter_next(&iter, &child))
+				{
+					gfloat					x, y, along, across, score;
+
+					if(child==inSelection || !clutter_actor_is_visible(child)) continue;
+					if(!XFDASHBOARD_IS_LIVE_WINDOW_SIMPLE(child)) continue;
+
+					clutter_actor_get_allocation_box(child, &box);
+					x=(box.x1+box.x2)/2.0f-cx;
+					y=(box.y1+box.y2)/2.0f-cy;
+
+					switch(inDirection)
+					{
+						case XFDASHBOARD_SELECTION_TARGET_LEFT:		along=-x; across=y; break;
+						case XFDASHBOARD_SELECTION_TARGET_RIGHT:	along=x; across=y; break;
+						case XFDASHBOARD_SELECTION_TARGET_UP:		along=-y; across=x; break;
+						default:									along=y; across=x; break;
+					}
+					if(along<=1.0f) continue;
+
+					/* prefer windows straight in that direction */
+					score=along+2.0f*ABS(across);
+					if(score<bestScore)
+					{
+						bestScore=score;
+						newSelection=child;
+					}
+				}
+
+				/* nothing in that direction: stay */
+				if(!newSelection) newSelection=inSelection;
+			}
 			break;
 
 		case XFDASHBOARD_SELECTION_TARGET_FIRST:
@@ -1675,27 +1745,13 @@ static ClutterActor* _xfdashboard_windows_view_focusable_find_selection(Xfdashbo
 			break;
 
 		case XFDASHBOARD_SELECTION_TARGET_PAGE_LEFT:
-			newSelectionIndex=(currentSelectionRow*columns);
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
+		case XFDASHBOARD_SELECTION_TARGET_PAGE_UP:
+			newSelection=clutter_actor_get_first_child(CLUTTER_ACTOR(self));
 			break;
 
 		case XFDASHBOARD_SELECTION_TARGET_PAGE_RIGHT:
-			newSelectionIndex=((currentSelectionRow+1)*columns)-1;
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
-			break;
-
-		case XFDASHBOARD_SELECTION_TARGET_PAGE_UP:
-			newSelectionIndex=currentSelectionColumn;
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
-			break;
-
 		case XFDASHBOARD_SELECTION_TARGET_PAGE_DOWN:
-			newSelectionIndex=((rows-1)*columns)+currentSelectionColumn;
-			newSelectionIndex=MIN(newSelectionIndex, numberChildren-1);
-			newSelection=clutter_actor_get_child_at_index(CLUTTER_ACTOR(self), newSelectionIndex);
+			newSelection=clutter_actor_get_last_child(CLUTTER_ACTOR(self));
 			break;
 
 		default:
@@ -1784,6 +1840,115 @@ void _xfdashboard_windows_view_focusable_iface_init(XfdashboardFocusableInterfac
 /* IMPLEMENTATION: ClutterActor */
 
 /* Actor will be mapped */
+/* Entry animation (like macOS Mission Control): windows fly from their real
+ * place on screen into the overview. Runs once before the next frame is
+ * painted; asking for allocation boxes forces the layout to be up to date.
+ */
+static gboolean _xfdashboard_windows_view_run_entry_animation(gpointer inUserData)
+{
+	ClutterActor					*inActor=CLUTTER_ACTOR(inUserData);
+	XfdashboardWindowsViewPrivate	*priv=XFDASHBOARD_WINDOWS_VIEW(inActor)->priv;
+	ClutterActor					*child;
+	ClutterActorIter				iter;
+	gfloat							viewX, viewY;
+
+	if(!priv->animateEntry || !clutter_actor_is_mapped(inActor)) return(FALSE);
+
+	/* Right after resuming the windows are not laid out yet: keep them hidden
+	 * and try again before the next frame (but give up after a while)
+	 */
+	priv->entryTries++;
+	clutter_actor_iter_init(&iter, inActor);
+	while(clutter_actor_iter_next(&iter, &child))
+	{
+		ClutterActorBox					box;
+
+		if(!XFDASHBOARD_IS_LIVE_WINDOW_SIMPLE(child) || !clutter_actor_is_visible(child)) continue;
+		clutter_actor_get_allocation_box(child, &box);
+		if(clutter_actor_box_get_width(&box)<1.0f && priv->entryTries<30)
+		{
+			clutter_actor_iter_init(&iter, inActor);
+			while(clutter_actor_iter_next(&iter, &child)) clutter_actor_set_opacity(child, 0);
+			return(TRUE);
+		}
+	}
+	priv->animateEntry=FALSE;
+
+	clutter_actor_get_transformed_position(inActor, &viewX, &viewY);
+
+	clutter_actor_iter_init(&iter, inActor);
+	while(clutter_actor_iter_next(&iter, &child))
+	{
+		XfdashboardWindowTrackerWindow	*window;
+		ClutterActorBox					box;
+		gint							x, y, w, h;
+		gfloat							scale;
+
+		if(!XFDASHBOARD_IS_LIVE_WINDOW_SIMPLE(child) || !clutter_actor_is_visible(child)) continue;
+
+		window=xfdashboard_live_window_simple_get_window(XFDASHBOARD_LIVE_WINDOW_SIMPLE(child));
+		if(!window) continue;
+
+		clutter_actor_get_allocation_box(child, &box);
+		if(clutter_actor_box_get_width(&box)<1.0f) continue;
+
+		/* Only stop our own transitions; the theme's move animation (x, y,
+		 * width, height) must keep running or windows stay where they were
+		 */
+		clutter_actor_remove_transition(child, "scale-x");
+		clutter_actor_remove_transition(child, "scale-y");
+		clutter_actor_remove_transition(child, "translation-x");
+		clutter_actor_remove_transition(child, "translation-y");
+		clutter_actor_remove_transition(child, "opacity");
+		clutter_actor_set_pivot_point(child, 0.0f, 0.0f);
+
+		if(xfdashboard_window_tracker_window_get_state(window) & XFDASHBOARD_WINDOW_TRACKER_WINDOW_STATE_MINIMIZED)
+		{
+			/* Minimized windows have no place on screen: fade and grow in */
+			clutter_actor_set_opacity(child, 0);
+			clutter_actor_set_pivot_point(child, 0.5f, 0.5f);
+			clutter_actor_set_scale(child, 0.85, 0.85);
+		}
+			else
+			{
+				xfdashboard_window_tracker_window_get_geometry(window, &x, &y, &w, &h);
+				scale=(gfloat)w/clutter_actor_box_get_width(&box);
+				clutter_actor_set_scale(child, scale, scale);
+				clutter_actor_set_translation(child, (x-viewX)-box.x1, (y-viewY)-box.y1, 0.0f);
+			}
+
+		clutter_actor_save_easing_state(child);
+		clutter_actor_set_easing_mode(child, CLUTTER_EASE_OUT_CUBIC);
+		clutter_actor_set_easing_duration(child, 320);
+		clutter_actor_set_scale(child, 1.0, 1.0);
+		clutter_actor_set_translation(child, 0.0f, 0.0f, 0.0f);
+		clutter_actor_set_opacity(child, 255);
+		clutter_actor_restore_easing_state(child);
+	}
+
+	return(FALSE);
+}
+
+static void _xfdashboard_windows_view_queue_entry_animation(XfdashboardWindowsView *self)
+{
+	XfdashboardWindowsViewPrivate	*priv=self->priv;
+
+	if(priv->animateEntry) return;
+
+	priv->animateEntry=TRUE;
+	priv->entryTries=0;
+	clutter_threads_add_repaint_func_full(CLUTTER_REPAINT_FLAGS_PRE_PAINT,
+											_xfdashboard_windows_view_run_entry_animation,
+											g_object_ref(self),
+											g_object_unref);
+}
+
+/* xfdashboard was brought back from background (daemon mode) */
+static void _xfdashboard_windows_view_on_resume(XfdashboardWindowsView *self, gpointer inUserData)
+{
+	if(clutter_actor_is_visible(CLUTTER_ACTOR(self))) _xfdashboard_windows_view_queue_entry_animation(self);
+}
+
 static void _xfdashboard_windows_view_map(ClutterActor *inActor)
 {
 	XfdashboardWindowsView			*self;
@@ -1798,6 +1963,11 @@ static void _xfdashboard_windows_view_map(ClutterActor *inActor)
 	/* Call parent's virtual function */
 	clutterActorClass=CLUTTER_ACTOR_CLASS(xfdashboard_windows_view_parent_class);
 	if(clutterActorClass->map) clutterActorClass->map(inActor);
+
+	/* Let windows fly from their real place on screen into the overview
+	 * (like macOS Mission Control)
+	 */
+	_xfdashboard_windows_view_queue_entry_animation(self);
 
 	/* Disconnect signal handler if available */
 	if(priv->scrollEventChangingWorkspaceStage)
@@ -1915,6 +2085,7 @@ static void _xfdashboard_windows_view_dispose(GObject *inObject)
 	if(priv->windowTracker)
 	{
 		g_signal_handlers_disconnect_by_data(priv->windowTracker, self);
+		g_signal_handlers_disconnect_by_data(xfdashboard_core_get_default(), self);
 		g_object_unref(priv->windowTracker);
 		priv->windowTracker=NULL;
 	}
@@ -1957,6 +2128,10 @@ static void _xfdashboard_windows_view_set_property(GObject *inObject,
 			_xfdashboard_windows_view_set_filter_workspace_windows(self, g_value_get_boolean(inValue));
 			break;
 
+		case PROP_HIDE_MINIMIZED_WINDOWS:
+			self->priv->hideMinimizedWindows=g_value_get_boolean(inValue);
+			break;
+
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID(inObject, inPropID, inSpec);
 			break;
@@ -1997,6 +2172,10 @@ static void _xfdashboard_windows_view_get_property(GObject *inObject,
 			g_value_set_boolean(outValue, self->priv->filterWorkspaceWindows);
 			break;
 
+		case PROP_HIDE_MINIMIZED_WINDOWS:
+			g_value_set_boolean(outValue, self->priv->hideMinimizedWindows);
+			break;
+
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID(inObject, inPropID, inSpec);
 			break;
@@ -2019,6 +2198,7 @@ static void xfdashboard_windows_view_class_init(XfdashboardWindowsViewClass *kla
 	gobjectClass->get_property=_xfdashboard_windows_view_get_property;
 
 	clutterActorClass->map=_xfdashboard_windows_view_map;
+
 	clutterActorClass->unmap=_xfdashboard_windows_view_unmap;
 
 	klass->window_close=_xfdashboard_windows_view_window_close;
@@ -2079,6 +2259,13 @@ static void xfdashboard_windows_view_class_init(XfdashboardWindowsViewClass *kla
 								TRUE,
 								G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+	XfdashboardWindowsViewProperties[PROP_HIDE_MINIMIZED_WINDOWS]=
+		g_param_spec_boolean("hide-minimized-windows",
+								"Hide minimized windows",
+								"Whether minimized windows should not be shown in this view",
+								FALSE,
+								G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
 	g_object_class_install_properties(gobjectClass, PROP_LAST, XfdashboardWindowsViewProperties);
 
 	/* Define stylable properties */
@@ -2086,6 +2273,7 @@ static void xfdashboard_windows_view_class_init(XfdashboardWindowsViewClass *kla
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardWindowsViewProperties[PROP_PREVENT_UPSCALING]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardWindowsViewProperties[PROP_FILTER_MONITOR_WINDOWS]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardWindowsViewProperties[PROP_FILTER_WORKSPACE_WINDOWS]);
+	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardWindowsViewProperties[PROP_HIDE_MINIMIZED_WINDOWS]);
 
 	/* Define actions */
 	XfdashboardWindowsViewSignals[ACTION_WINDOW_CLOSE]=
@@ -2350,6 +2538,16 @@ static void xfdashboard_windows_view_init(XfdashboardWindowsView *self)
 	g_signal_connect_swapped(priv->windowTracker,
 								"window-opened",
 								G_CALLBACK(_xfdashboard_windows_view_on_window_opened),
+								self);
+
+	g_signal_connect_swapped(priv->windowTracker,
+								"window-state-changed",
+								G_CALLBACK(_xfdashboard_windows_view_on_window_state_changed),
+								self);
+
+	g_signal_connect_swapped(xfdashboard_core_get_default(),
+								"resume",
+								G_CALLBACK(_xfdashboard_windows_view_on_resume),
 								self);
 
 	g_signal_connect_swapped(priv->windowTracker,

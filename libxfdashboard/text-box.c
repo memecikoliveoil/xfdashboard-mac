@@ -410,10 +410,22 @@ static void _xfdashboard_text_box_allocate(ClutterActor *self,
 		clutter_actor_get_size(priv->actorPrimaryIcon, &iconWidth, &iconHeight);
 		if(iconHeight>0.0f) iconWidth=(bottom-top)*(iconWidth/iconHeight);
 
-		/* Set allocation */
+		/* Set allocation (vertically centered at its natural height) */
 		childRight=left+iconWidth;
 
-		box=clutter_actor_box_new(floor(left), floor(top), floor(childRight), floor(bottom));
+		{
+			gfloat				naturalHeight=0.0f;
+			gfloat				iconTop=top, iconBottom=bottom;
+
+			clutter_actor_get_preferred_height(CLUTTER_ACTOR(priv->actorPrimaryIcon), -1, NULL, &naturalHeight);
+			if(naturalHeight>0.0f && naturalHeight<(bottom-top))
+			{
+				iconTop=top+((bottom-top)-naturalHeight)/2.0f;
+				iconBottom=iconTop+naturalHeight;
+				childRight=left+naturalHeight*(iconWidth/MAX(1.0f, bottom-top));
+			}
+			box=clutter_actor_box_new(floor(left), floor(iconTop), floor(childRight), floor(iconBottom));
+		}
 		clutter_actor_allocate(CLUTTER_ACTOR(priv->actorPrimaryIcon), box, inFlags);
 		clutter_actor_box_free(box);
 
@@ -452,8 +464,8 @@ static void _xfdashboard_text_box_allocate(ClutterActor *self,
 											NULL, NULL,
 											NULL, &textHeight);
 
-		/* Set allocation */
-		box=clutter_actor_box_new(floor(left), floor(bottom-textHeight), floor(right), floor(bottom));
+		/* Set allocation (vertically centered) */
+		box=clutter_actor_box_new(floor(left), floor(top+((bottom-top)-textHeight)/2.0f), floor(right), floor(top+((bottom-top)-textHeight)/2.0f)+textHeight);
 		clutter_actor_allocate(CLUTTER_ACTOR(priv->actorTextBox), box, inFlags);
 		clutter_actor_box_free(box);
 	}
@@ -468,8 +480,8 @@ static void _xfdashboard_text_box_allocate(ClutterActor *self,
 											NULL, NULL,
 											NULL, &textHeight);
 
-		/* Set allocation */
-		box=clutter_actor_box_new(floor(left), floor(bottom-textHeight), floor(right), floor(bottom));
+		/* Set allocation (vertically centered) */
+		box=clutter_actor_box_new(floor(left), floor(top+((bottom-top)-textHeight)/2.0f), floor(right), floor(top+((bottom-top)-textHeight)/2.0f)+textHeight);
 		clutter_actor_allocate(CLUTTER_ACTOR(priv->actorHintLabel), box, inFlags);
 		clutter_actor_box_free(box);
 	}
@@ -632,11 +644,21 @@ static void _xfdashboard_text_box_set_property(GObject *inObject,
 			break;
 
 		case PROP_PRIMARY_ICON_NAME:
-			xfdashboard_text_box_set_primary_icon(self, g_value_get_string(inValue));
+			/* An empty icon name from a theme means "no icon" */
+			{
+				const gchar		*iconName=g_value_get_string(inValue);
+
+				xfdashboard_text_box_set_primary_icon(self, (iconName && *iconName) ? iconName : NULL);
+			}
 			break;
 
 		case PROP_SECONDARY_ICON_NAME:
-			xfdashboard_text_box_set_secondary_icon(self, g_value_get_string(inValue));
+			/* An empty icon name from a theme means "no icon" */
+			{
+				const gchar		*iconName=g_value_get_string(inValue);
+
+				xfdashboard_text_box_set_secondary_icon(self, (iconName && *iconName) ? iconName : NULL);
+			}
 			break;
 
 		case PROP_TEXT:

@@ -43,6 +43,11 @@
 #include <libxfdashboard/focusable.h>
 #include <libxfdashboard/stage-interface.h>
 #include <libxfdashboard/debug.h>
+#include <libxfdashboard/marshal.h>
+#ifndef WNCK_I_KNOW_THIS_IS_UNSTABLE
+#define WNCK_I_KNOW_THIS_IS_UNSTABLE
+#endif
+#include <libwnck/libwnck.h>
 
 
 /* Define this class in GObject system */
@@ -1230,6 +1235,29 @@ static void _xfdashboard_workspace_selector_get_property(GObject *inObject,
  * Override functions in parent classes and define properties
  * and signals
  */
+/* Action signal: add a new workspace at the end (like the "+" of macOS Spaces).
+ * Usable from themes with an XfdashboardActionButton:
+ *   target=XfdashboardWorkspaceSelector, action=add-workspace
+ */
+static gboolean _xfdashboard_workspace_selector_add_workspace(XfdashboardWorkspaceSelector *self,
+																XfdashboardFocusable *inSource,
+																const gchar *inAction,
+																ClutterEvent *inEvent)
+{
+	WnckScreen			*screen;
+	gint				count;
+
+	g_return_val_if_fail(XFDASHBOARD_IS_WORKSPACE_SELECTOR(self), CLUTTER_EVENT_PROPAGATE);
+
+	screen=wnck_screen_get_default();
+	if(!screen) return(CLUTTER_EVENT_PROPAGATE);
+
+	count=wnck_screen_get_workspace_count(screen);
+	if(count>0 && count<32) wnck_screen_change_workspace_count(screen, count+1);
+
+	return(CLUTTER_EVENT_STOP);
+}
+
 static void xfdashboard_workspace_selector_class_init(XfdashboardWorkspaceSelectorClass *klass)
 {
 	XfdashboardActorClass	*actorClass=XFDASHBOARD_ACTOR_CLASS(klass);
@@ -1240,6 +1268,19 @@ static void xfdashboard_workspace_selector_class_init(XfdashboardWorkspaceSelect
 	gobjectClass->dispose=_xfdashboard_workspace_selector_dispose;
 	gobjectClass->set_property=_xfdashboard_workspace_selector_set_property;
 	gobjectClass->get_property=_xfdashboard_workspace_selector_get_property;
+
+	g_signal_new_class_handler("add-workspace",
+								G_TYPE_FROM_CLASS(klass),
+								G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
+								G_CALLBACK(_xfdashboard_workspace_selector_add_workspace),
+								g_signal_accumulator_true_handled,
+								NULL,
+								_xfdashboard_marshal_BOOLEAN__OBJECT_STRING_BOXED,
+								G_TYPE_BOOLEAN,
+								3,
+								XFDASHBOARD_TYPE_FOCUSABLE,
+								G_TYPE_STRING,
+								CLUTTER_TYPE_EVENT);
 
 	clutterActorClass->get_preferred_width=_xfdashboard_workspace_selector_get_preferred_width;
 	clutterActorClass->get_preferred_height=_xfdashboard_workspace_selector_get_preferred_height;

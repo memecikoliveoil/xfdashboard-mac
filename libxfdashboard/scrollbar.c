@@ -302,6 +302,24 @@ static gboolean _xfdashboard_scrollbar_on_scroll_event(ClutterActor *inActor,
 	self=XFDASHBOARD_SCROLLBAR(inActor);
 	priv=self->priv;
 
+	/* Smooth scrolling (touchpad, high resolution wheels): move by the
+	 * delta reported, in pixels, without jumping half a page
+	 */
+	if(clutter_event_get_scroll_direction(inEvent)==CLUTTER_SCROLL_SMOOTH)
+	{
+		gdouble						dx=0.0, dy=0.0;
+
+		clutter_event_get_scroll_delta(inEvent, &dx, &dy);
+		value=priv->value+(gfloat)((priv->orientation==CLUTTER_ORIENTATION_VERTICAL ? dy : dx)*60.0);
+		value=MAX(value, 0);
+		value=MIN(priv->range-priv->valueRange, value);
+		xfdashboard_scrollbar_set_value(self, value);
+		return(CLUTTER_EVENT_STOP);
+	}
+
+	/* Discrete events emulated from smooth ones were handled above already */
+	if(clutter_event_is_pointer_emulated(inEvent)) return(CLUTTER_EVENT_STOP);
+
 	/* Get direction of scroll event */
 	switch(clutter_event_get_scroll_direction(inEvent))
 	{
@@ -327,7 +345,10 @@ static gboolean _xfdashboard_scrollbar_on_scroll_event(ClutterActor *inActor,
 	/* Calculate new value by increasing or decreasing value by value-range
 	 * of slider and adjust new value to fit into range (respecting value-range)
 	 */
-	value=priv->value+(priv->valueRange*directionFactor);
+	/* A mouse wheel step moves a fixed distance (like browsers) instead of
+	 * half of the visible area, which felt jumpy
+	 */
+	value=priv->value+(directionFactor<0.0f ? -100.0f : 100.0f);
 	value=MAX(value, 0);
 	value=MIN(priv->range-priv->valueRange, value);
 

@@ -26,10 +26,15 @@
 #endif
 
 
+#define COGL_ENABLE_EXPERIMENTAL_API
+#define CLUTTER_ENABLE_EXPERIMENTAL_API
+
 #include <libxfdashboard/quicklaunch.h>
 
 #include <glib/gi18n-lib.h>
 #include <math.h>
+#include <string.h>
+#include <cairo.h>
 #include <gtk/gtk.h>
 
 #include <libxfdashboard/enums.h>
@@ -71,6 +76,22 @@ struct _XfdashboardQuicklaunchPrivate
 	gfloat							scaleStep;
 
 	gfloat							spacing;
+	gfloat							hoverZoom;
+	gboolean						plankStyle;
+	gfloat							zoomPointer;
+	gfloat							zoomStrength;
+	gfloat							zoomStrengthFrom;
+	gfloat							zoomStrengthTo;
+	ClutterTimeline					*zoomTimeline;
+	gfloat							growLeft;
+	gfloat							separatorX[8];	/* positions of divider lines drawn */
+	gint							separatorCount;
+	CoglTexture						*dotTexture;
+	CoglTexture						*activeTexture;
+	guint							windowsChangedIdleID;
+	gfloat							growRight;
+	gfloat							growTop;
+	CoglPipeline					*dockPipeline;
 
 	ClutterOrientation				orientation;
 
@@ -110,6 +131,8 @@ enum
 	PROP_NORMAL_ICON_SIZE,
 	PROP_SPACING,
 	PROP_ORIENTATION,
+	PROP_HOVER_ZOOM,
+	PROP_PLANK_STYLE,
 
 	PROP_LAST
 };
@@ -148,6 +171,11 @@ enum
 };
 
 /* Forward declarations */
+#define XFDASHBOARD_QUICKLAUNCH_DIVIDER_KEY		"xfdashboard-dock-divider"
+#define XFDASHBOARD_QUICKLAUNCH_DIVIDER_ENTRY	"separator"
+/* Position of the applications (Launchpad) button within favourites */
+#define XFDASHBOARD_QUICKLAUNCH_APPS_ENTRY		"launchpad"
+
 static void _xfdashboard_quicklaunch_update_property_from_icons(XfdashboardQuicklaunch *self);
 static ClutterActor* _xfdashboard_quicklaunch_create_dynamic_actor(XfdashboardQuicklaunch *self, GAppInfo *inAppInfo);
 static ClutterActor* _xfdashboard_quicklaunch_create_favourite_actor(XfdashboardQuicklaunch *self, GAppInfo *inAppInfo);
@@ -356,6 +384,28 @@ static void _xfdashboard_quicklaunch_on_favourite_clicked(XfdashboardQuicklaunch
 				/* Switch to workspace where window is placed at */
 				lastActiveWorkspace=xfdashboard_window_tracker_window_get_workspace(lastActiveWindow);
 				xfdashboard_window_tracker_workspace_activate(lastActiveWorkspace);
+
+				/* Like macOS: bring all (not minimized) windows of the application
+				 * on that workspace to front, oldest first so the last active one
+				 * ends up on top
+				 */
+				{
+					const GList						*iter;
+
+					for(iter=g_list_last((GList*)windows); iter; iter=g_list_previous(iter))
+					{
+						XfdashboardWindowTrackerWindow	*window=XFDASHBOARD_WINDOW_TRACKER_WINDOW(iter->data);
+
+						if(window==lastActiveWindow) continue;
+						if(xfdashboard_window_tracker_window_get_workspace(window)!=lastActiveWorkspace) continue;
+						if(xfdashboard_window_tracker_window_get_state(window) &
+							(XFDASHBOARD_WINDOW_TRACKER_WINDOW_STATE_MINIMIZED | XFDASHBOARD_WINDOW_TRACKER_WINDOW_STATE_SKIP_TASKLIST))
+						{
+							continue;
+						}
+						xfdashboard_window_tracker_window_activate(window);
+					}
+				}
 
 				/* Activate window */
 				xfdashboard_window_tracker_window_activate(lastActiveWindow);
@@ -1459,6 +1509,25 @@ static void _xfdashboard_quicklaunch_update_property_from_icons(XfdashboardQuick
 	{
 		desktopFile=NULL;
 
+		/* Keep position of applications button (only needed if not first) */
+		if(child==priv->appsButton)
+		{
+			if(clutter_actor_get_previous_sibling(child))
+			{
+				desktopFile=g_strdup(XFDASHBOARD_QUICKLAUNCH_APPS_ENTRY);
+				g_array_append_val(newFavourites, desktopFile);
+			}
+			continue;
+		}
+
+		/* Keep dividers at their place in the list */
+		if(g_object_get_data(G_OBJECT(child), XFDASHBOARD_QUICKLAUNCH_DIVIDER_KEY))
+		{
+			desktopFile=g_strdup(XFDASHBOARD_QUICKLAUNCH_DIVIDER_ENTRY);
+			g_array_append_val(newFavourites, desktopFile);
+			continue;
+		}
+
 		/* Only add desktop file if it is an application button for
 		 * a favourite and provides a desktop ID or desktop file name
 		 * and is not going to be destroyed
@@ -1496,6 +1565,102 @@ static void _xfdashboard_quicklaunch_update_property_from_icons(XfdashboardQuick
 	g_object_notify_by_pspec(G_OBJECT(self), XfdashboardQuicklaunchProperties[PROP_FAVOURITES]);
 }
 
+/* Folders and trash copied from Plank are pinned items which stay at the end
+ * of the dock, after running applications (like "anchor files/docklets" in
+ * Plank and like the macOS dock). They are desktop files generated in
+ * ~/.local/share/xfdashboard/dock/ by plank-to-xfdashboard.py.
+ */
+static gboolean _xfdashboard_quicklaunch_is_anchored(ClutterActor *inActor)
+{
+	GAppInfo		*appInfo;
+	GFile			*file;
+	gchar			*path;
+	gboolean		result=FALSE;
+
+	if(!XFDASHBOARD_IS_APPLICATION_BUTTON(inActor)) return(FALSE);
+	if(!xfdashboard_stylable_has_class(XFDASHBOARD_STYLABLE(inActor), "favourite-app")) return(FALSE);
+
+	appInfo=xfdashboard_application_button_get_app_info(XFDASHBOARD_APPLICATION_BUTTON(inActor));
+	if(!appInfo || !XFDASHBOARD_IS_DESKTOP_APP_INFO(appInfo)) return(FALSE);
+
+	file=xfdashboard_desktop_app_info_get_file(XFDASHBOARD_DESKTOP_APP_INFO(appInfo));
+	path=(file ? g_file_get_path(file) : NULL);
+	if(path && strstr(path, "/xfdashboard/dock/")) result=TRUE;
+	g_free(path);
+	return(result);
+}
+
+static void _xfdashboard_quicklaunch_move_anchored_to_end(XfdashboardQuicklaunch *self)
+{
+	XfdashboardQuicklaunchPrivate	*priv=self->priv;
+	ClutterActor					*child;
+	GList							*pending=NULL, *move=NULL, *iter;
+
+	/* Only for themes that opt in with "plank-style: true;" */
+	if(!self->priv->plankStyle) return;
+
+	for(child=clutter_actor_get_first_child(CLUTTER_ACTOR(self)); child; child=clutter_actor_get_next_sibling(child))
+	{
+		if(child==priv->separatorFavouritesToDynamic) continue;
+
+		if(g_object_get_data(G_OBJECT(child), XFDASHBOARD_QUICKLAUNCH_DIVIDER_KEY))
+		{
+			pending=g_list_append(pending, child);
+			continue;
+		}
+
+		if(_xfdashboard_quicklaunch_is_anchored(child))
+		{
+			move=g_list_concat(move, pending);
+			pending=NULL;
+			move=g_list_append(move, child);
+			continue;
+		}
+
+		/* Ignore helpers which are not dock items */
+		if(!clutter_actor_is_visible(child) && !XFDASHBOARD_IS_APPLICATION_BUTTON(child)) continue;
+
+		g_list_free(pending);
+		pending=NULL;
+	}
+	g_list_free(pending);
+
+	for(iter=move; iter; iter=g_list_next(iter))
+	{
+		clutter_actor_set_child_above_sibling(CLUTTER_ACTOR(self), CLUTTER_ACTOR(iter->data), NULL);
+	}
+	if(move) clutter_actor_queue_relayout(CLUTTER_ACTOR(self));
+	g_list_free(move);
+}
+
+static gboolean _xfdashboard_quicklaunch_on_windows_changed_idle(gpointer inUserData)
+{
+	XfdashboardQuicklaunch			*self=XFDASHBOARD_QUICKLAUNCH(inUserData);
+
+	self->priv->windowsChangedIdleID=0;
+	clutter_actor_queue_redraw(CLUTTER_ACTOR(self));
+	return(G_SOURCE_REMOVE);
+}
+
+static void _xfdashboard_quicklaunch_on_windows_changed(XfdashboardQuicklaunch *self, gpointer inWindow)
+{
+	if(!self->priv->windowsChangedIdleID)
+	{
+		self->priv->windowsChangedIdleID=g_idle_add(_xfdashboard_quicklaunch_on_windows_changed_idle, self);
+	}
+}
+
+static void _xfdashboard_quicklaunch_on_actor_added(ClutterActor *inActor, ClutterActor *inChild, gpointer inUserData)
+{
+	XfdashboardQuicklaunch			*self=XFDASHBOARD_QUICKLAUNCH(inActor);
+
+	if(XFDASHBOARD_IS_STYLABLE(inChild) &&
+		xfdashboard_stylable_has_class(XFDASHBOARD_STYLABLE(inChild), "dynamic-app"))
+	{
+		_xfdashboard_quicklaunch_move_anchored_to_end(self);
+	}
+}
+
 /* Update icons in quicklaunch from property */
 static void _xfdashboard_quicklaunch_update_icons_from_property(XfdashboardQuicklaunch *self)
 {
@@ -1531,11 +1696,19 @@ static void _xfdashboard_quicklaunch_update_icons_from_property(XfdashboardQuick
 	clutter_actor_iter_init(&iter, CLUTTER_ACTOR(self));
 	while(clutter_actor_iter_next(&iter, &child))
 	{
-		if(XFDASHBOARD_IS_APPLICATION_BUTTON(child) &&
-			xfdashboard_stylable_has_class(XFDASHBOARD_STYLABLE(child), "favourite-app"))
+		if((XFDASHBOARD_IS_APPLICATION_BUTTON(child) &&
+				xfdashboard_stylable_has_class(XFDASHBOARD_STYLABLE(child), "favourite-app")) ||
+			g_object_get_data(G_OBJECT(child), XFDASHBOARD_QUICKLAUNCH_DIVIDER_KEY))
 		{
 			clutter_actor_iter_destroy(&iter);
 		}
+	}
+
+	/* Applications button starts at the beginning unless favourites say otherwise */
+	if(priv->appsButton)
+	{
+		clutter_actor_set_child_below_sibling(CLUTTER_ACTOR(self), priv->appsButton, NULL);
+		if(priv->trashButton) clutter_actor_set_child_above_sibling(CLUTTER_ACTOR(self), priv->trashButton, priv->appsButton);
 	}
 
 	/* Now re-add all application icons for current favourites */
@@ -1543,6 +1716,30 @@ static void _xfdashboard_quicklaunch_update_icons_from_property(XfdashboardQuick
 	{
 		/* Get desktop file to create application button for in quicklaunch */
 		desktopFilename=priv->favourites[i];
+
+		/* Applications button entry: place it here (e.g. right of Finder like
+		 * on macOS) instead of at the start of the dock
+		 */
+		if(g_strcmp0(desktopFilename, XFDASHBOARD_QUICKLAUNCH_APPS_ENTRY)==0)
+		{
+			if(priv->appsButton && priv->plankStyle)
+			{
+				clutter_actor_set_child_below_sibling(CLUTTER_ACTOR(self), priv->appsButton, priv->separatorFavouritesToDynamic);
+				if(priv->trashButton) clutter_actor_set_child_above_sibling(CLUTTER_ACTOR(self), priv->trashButton, priv->appsButton);
+			}
+			continue;
+		}
+
+		/* Divider entry */
+		if(g_strcmp0(desktopFilename, XFDASHBOARD_QUICKLAUNCH_DIVIDER_ENTRY)==0)
+		{
+			actor=clutter_actor_new();
+			g_object_set_data(G_OBJECT(actor), XFDASHBOARD_QUICKLAUNCH_DIVIDER_KEY, GINT_TO_POINTER(1));
+			clutter_actor_hide(actor);
+			clutter_actor_insert_child_below(CLUTTER_ACTOR(self), actor, priv->separatorFavouritesToDynamic);
+			continue;
+		}
+
 		if(g_path_is_absolute(desktopFilename)) appInfo=xfdashboard_desktop_app_info_new_from_path(desktopFilename);
 			else
 			{
@@ -1582,6 +1779,9 @@ static void _xfdashboard_quicklaunch_update_icons_from_property(XfdashboardQuick
 		/* Release allocated resources */
 		g_object_unref(appInfo);
 	}
+
+	/* Keep folders/trash after running applications */
+	_xfdashboard_quicklaunch_move_anchored_to_end(self);
 }
 
 /* Set up favourites array from string array value */
@@ -1622,6 +1822,89 @@ static void _xfdashboard_quicklaunch_set_favourites(XfdashboardQuicklaunch *self
 }
 
 /* Get scale factor to fit all children into given width */
+/* Dividers like in the macOS dock (thin line with some extra room):
+ * - where the favourites list contains a "separator" entry (Plank's separator
+ *   docklet is copied there), and
+ * - between pinned (favourite) and running but not pinned applications.
+ * Dividers are hidden marker actors between the items. A divider is only
+ * active if there are visible items on both sides and no other divider
+ * directly before it.
+ */
+
+static gboolean _xfdashboard_quicklaunch_is_divider(XfdashboardQuicklaunch *self, ClutterActor *inActor)
+{
+	/* Dividers only for themes that opt in with "plank-style: true;" */
+	if(!self->priv->plankStyle) return(FALSE);
+
+	return(inActor==self->priv->separatorFavouritesToDynamic ||
+			g_object_get_data(G_OBJECT(inActor), XFDASHBOARD_QUICKLAUNCH_DIVIDER_KEY)!=NULL);
+}
+
+static gfloat _xfdashboard_quicklaunch_get_divider_width(XfdashboardQuicklaunch *self)
+{
+	return(MAX(self->priv->spacing*2.0f, 16.0f));
+}
+
+/* Is divider active? If inDivider is NULL, return number of active dividers */
+static gint _xfdashboard_quicklaunch_divider_active(XfdashboardQuicklaunch *self, ClutterActor *inDivider)
+{
+	XfdashboardQuicklaunchPrivate	*priv=self->priv;
+	ClutterActor					*child, *next;
+	gboolean						sawItem=FALSE, qualifies;
+	gint							count=0;
+
+	for(child=clutter_actor_get_first_child(CLUTTER_ACTOR(self)); child; child=clutter_actor_get_next_sibling(child))
+	{
+		if(!_xfdashboard_quicklaunch_is_divider(self, child))
+		{
+			if(clutter_actor_is_visible(child)) sawItem=TRUE;
+			continue;
+		}
+
+		/* Check items following this divider */
+		qualifies=FALSE;
+		if(sawItem)
+		{
+			for(next=clutter_actor_get_next_sibling(child); next; next=clutter_actor_get_next_sibling(next))
+			{
+				if(_xfdashboard_quicklaunch_is_divider(self, next) || !clutter_actor_is_visible(next)) continue;
+				if(child==priv->separatorFavouritesToDynamic)
+				{
+					ClutterActor	*other;
+
+					qualifies=(XFDASHBOARD_IS_STYLABLE(next) &&
+								xfdashboard_stylable_has_class(XFDASHBOARD_STYLABLE(next), "dynamic-app"));
+
+					/* User placed own dividers (e.g. copied from Plank): running
+					 * applications simply join the section before the last one
+					 */
+					for(other=clutter_actor_get_first_child(CLUTTER_ACTOR(self)); other && qualifies; other=clutter_actor_get_next_sibling(other))
+					{
+						if(g_object_get_data(G_OBJECT(other), XFDASHBOARD_QUICKLAUNCH_DIVIDER_KEY)) qualifies=FALSE;
+					}
+				}
+					else qualifies=TRUE;
+				break;
+			}
+		}
+
+		if(qualifies)
+		{
+			count++;
+			sawItem=FALSE;
+		}
+		if(child==inDivider) return(qualifies ? 1 : 0);
+	}
+
+	return(inDivider ? 0 : count);
+}
+
+/* Total extra room taken by active dividers */
+static gfloat _xfdashboard_quicklaunch_get_separator_gap(XfdashboardQuicklaunch *self)
+{
+	return(_xfdashboard_quicklaunch_divider_active(self, NULL)*_xfdashboard_quicklaunch_get_divider_width(self));
+}
+
 static gfloat _xfdashboard_quicklaunch_get_scale_for_width(XfdashboardQuicklaunch *self,
 															gfloat inForWidth,
 															gboolean inDoMinimumSize)
@@ -1666,7 +1949,7 @@ static gfloat _xfdashboard_quicklaunch_get_scale_for_width(XfdashboardQuicklaunc
 	/* Determine scalable width. That is the width without spacing
 	 * between children and the spacing used as padding.
 	 */
-	scalableWidth=inForWidth-((numberChildren+1)*priv->spacing);
+	scalableWidth=inForWidth-((numberChildren+1)*priv->spacing)-_xfdashboard_quicklaunch_get_separator_gap(self);
 
 	/* Get scale factor */
 	scale=priv->scaleMax;
@@ -1685,7 +1968,7 @@ static gfloat _xfdashboard_quicklaunch_get_scale_for_width(XfdashboardQuicklaunc
 		do
 		{
 			recheckWidth=FALSE;
-			totalWidth=priv->spacing;
+			totalWidth=priv->spacing+_xfdashboard_quicklaunch_get_separator_gap(self);
 
 			/* Iterate through visible children and sum their scaled
 			 * widths. The total width will be initialized with unscaled
@@ -2465,6 +2748,10 @@ static void _xfdashboard_quicklaunch_get_preferred_width(ClutterActor *inActor,
 			minWidth+=(numberChildren+1)*priv->spacing;
 			naturalWidth+=(numberChildren+1)*priv->spacing;
 		}
+
+		/* Room for divider between pinned and other running applications */
+		minWidth+=_xfdashboard_quicklaunch_get_separator_gap(self);
+		naturalWidth+=_xfdashboard_quicklaunch_get_separator_gap(self);
 	}
 		/* ... otherwise determine width for vertical orientation */
 		else
@@ -2517,6 +2804,559 @@ static void _xfdashboard_quicklaunch_get_preferred_width(ClutterActor *inActor,
 }
 
 /* Allocate position and size of actor and its children */
+/* Hover zoom like Plank/macOS dock: every icon grows depending on its
+ * distance to the pointer (cosine falloff over a few icons), so the zoom
+ * follows the pointer continuously. Grown icons push their neighbours aside
+ * and the whole row stays centered. Only the zoom "strength" (0..1) is
+ * animated when the pointer enters or leaves the dock.
+ */
+static void _xfdashboard_quicklaunch_update_zoom(XfdashboardQuicklaunch *self)
+{
+	XfdashboardQuicklaunchPrivate	*priv=self->priv;
+	ClutterActor					*child;
+	ClutterActorIter				iter;
+	ClutterActorBox					box;
+	gfloat							zooms[256];
+	gfloat							extra[256];
+	gfloat							totalExtra, before;
+	gint							n, i;
+	gfloat							maxZoom;
+	gfloat							prevEnd;
+	gboolean						separatorPending;
+
+	/* Like Plank: icons may rise above the dock, the dock keeps its height */
+	maxZoom=priv->hoverZoom;
+
+	/* First pass: zoom factor of each visible child */
+	n=0;
+	totalExtra=0.0f;
+	clutter_actor_iter_init(&iter, CLUTTER_ACTOR(self));
+	while(clutter_actor_iter_next(&iter, &child) && n<256)
+	{
+		gfloat						w, h, center, distance, range, z;
+
+		if(!clutter_actor_is_visible(child)) continue;
+
+		clutter_actor_get_allocation_box(child, &box);
+		clutter_actor_box_get_size(&box, &w, &h);
+		w*=priv->scaleCurrent;
+		h*=priv->scaleCurrent;
+
+		z=1.0f;
+		if(priv->hoverZoom>1.0f && priv->zoomStrength>0.0f && priv->zoomPointer>=0.0f)
+		{
+			if(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL)
+			{
+				center=box.x1+(w/2.0f);
+				range=w*1.5f;
+			}
+				else
+				{
+					center=box.y1+(h/2.0f);
+					range=h*1.5f;
+				}
+
+			distance=ABS(priv->zoomPointer-center);
+			if(range>0.0f && distance<range)
+			{
+				z=1.0f+((maxZoom-1.0f)*priv->zoomStrength*((1.0f+cosf(G_PI*distance/range))/2.0f));
+			}
+		}
+
+		zooms[n]=z;
+		extra[n]=(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL ? w : h)*(z-1.0f);
+		totalExtra+=extra[n];
+		n++;
+	}
+
+	/* Second pass: scale and shift children */
+	priv->growTop=0.0f;
+	priv->separatorCount=0;
+	i=0;
+	before=0.0f;
+	prevEnd=-1.0f;
+	separatorPending=FALSE;
+	clutter_actor_iter_init(&iter, CLUTTER_ACTOR(self));
+	while(clutter_actor_iter_next(&iter, &child) && i<n)
+	{
+		gfloat						w, h, shift;
+
+		if(_xfdashboard_quicklaunch_is_divider(self, child))
+		{
+			if(prevEnd>=0.0f && _xfdashboard_quicklaunch_divider_active(self, child)) separatorPending=TRUE;
+			continue;
+		}
+
+		if(!clutter_actor_is_visible(child)) continue;
+
+		clutter_actor_get_allocation_box(child, &box);
+		clutter_actor_box_get_size(&box, &w, &h);
+		w*=priv->scaleCurrent;
+		h*=priv->scaleCurrent;
+
+		shift=before-(totalExtra/2.0f);
+		clutter_actor_set_pivot_point(child, 0.0f, 0.0f);
+		clutter_actor_set_scale(child, priv->scaleCurrent*zooms[i], priv->scaleCurrent*zooms[i]);
+		if(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL)
+		{
+			/* Grow upwards from the bottom edge (stays inside the dock) */
+			clutter_actor_set_translation(child, shift, -(h*(zooms[i]-1.0f)), 0.0f);
+		}
+			else
+			{
+				clutter_actor_set_translation(child, 0.0f, shift, 0.0f);
+			}
+
+		/* Divider sits in the middle of the gap between its neighbours */
+		{
+			gfloat					start, end;
+
+			if(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL)
+			{
+				start=box.x1+shift;
+				end=start+(w*zooms[i]);
+			}
+				else
+				{
+					start=box.y1+shift;
+					end=start+(h*zooms[i]);
+				}
+
+			if(separatorPending)
+			{
+				if(priv->separatorCount<(gint)G_N_ELEMENTS(priv->separatorX))
+				{
+					priv->separatorX[priv->separatorCount++]=(prevEnd+start)/2.0f;
+				}
+				separatorPending=FALSE;
+			}
+			prevEnd=end;
+		}
+
+		before+=extra[i];
+		i++;
+	}
+
+	/* Like Plank the dock itself grows with the zoomed icons */
+	priv->growLeft=priv->growRight=(isfinite(totalExtra) ? MAX(0.0f, totalExtra/2.0f) : 0.0f);
+	if(!isfinite(priv->growTop)) priv->growTop=0.0f;
+	clutter_actor_queue_redraw(CLUTTER_ACTOR(self));
+}
+
+static void _xfdashboard_quicklaunch_zoom_on_new_frame(ClutterTimeline *inTimeline, gint inMsecs, gpointer inUserData)
+{
+	XfdashboardQuicklaunch			*self=XFDASHBOARD_QUICKLAUNCH(inUserData);
+	XfdashboardQuicklaunchPrivate	*priv=self->priv;
+
+	priv->zoomStrength=priv->zoomStrengthFrom+((priv->zoomStrengthTo-priv->zoomStrengthFrom)*clutter_timeline_get_progress(inTimeline));
+	_xfdashboard_quicklaunch_update_zoom(self);
+}
+
+static void _xfdashboard_quicklaunch_zoom_strength_to(XfdashboardQuicklaunch *self, gfloat inStrength)
+{
+	XfdashboardQuicklaunchPrivate	*priv=self->priv;
+
+	if(priv->zoomStrengthTo==inStrength &&
+		(clutter_timeline_is_playing(priv->zoomTimeline) || priv->zoomStrength==inStrength))
+	{
+		return;
+	}
+
+	clutter_timeline_stop(priv->zoomTimeline);
+	priv->zoomStrengthFrom=priv->zoomStrength;
+	priv->zoomStrengthTo=inStrength;
+	clutter_timeline_rewind(priv->zoomTimeline);
+	clutter_timeline_start(priv->zoomTimeline);
+}
+
+static gboolean _xfdashboard_quicklaunch_on_captured_event(ClutterActor *inActor, ClutterEvent *inEvent, gpointer inUserData)
+{
+	XfdashboardQuicklaunch			*self=XFDASHBOARD_QUICKLAUNCH(inActor);
+	XfdashboardQuicklaunchPrivate	*priv=self->priv;
+	gfloat							stageX, stageY, x, y;
+
+	if(clutter_event_type(inEvent)!=CLUTTER_MOTION) return(CLUTTER_EVENT_PROPAGATE);
+
+	clutter_event_get_coords(inEvent, &stageX, &stageY);
+	if(!clutter_actor_transform_stage_point(inActor, stageX, stageY, &x, &y)) return(CLUTTER_EVENT_PROPAGATE);
+
+	priv->zoomPointer=(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL ? x : y);
+	if(priv->zoomStrengthTo<1.0f || priv->zoomStrength<1.0f) _xfdashboard_quicklaunch_zoom_strength_to(self, 1.0f);
+	if(!clutter_timeline_is_playing(priv->zoomTimeline)) _xfdashboard_quicklaunch_update_zoom(self);
+
+	return(CLUTTER_EVENT_PROPAGATE);
+}
+
+static gboolean _xfdashboard_quicklaunch_on_leave(ClutterActor *inActor, ClutterEvent *inEvent, gpointer inUserData)
+{
+	ClutterActor					*related;
+
+	/* Pointer left the whole dock (not just moved onto a child) */
+	related=clutter_event_get_related(inEvent);
+	if(related && (related==inActor || clutter_actor_contains(inActor, related))) return(CLUTTER_EVENT_PROPAGATE);
+
+	_xfdashboard_quicklaunch_zoom_strength_to(XFDASHBOARD_QUICKLAUNCH(inActor), 0.0f);
+	return(CLUTTER_EVENT_PROPAGATE);
+}
+
+/* Draw the dock background ourselves (rounded rectangle with outline) so it
+ * can grow with the zoomed icons without relayouting the stage. Colors,
+ * outline and corner radius come from the theme's background-* properties.
+ */
+static void _xfdashboard_quicklaunch_paint_node(ClutterActor *inActor, ClutterPaintNode *inRootNode)
+{
+	XfdashboardQuicklaunch			*self=XFDASHBOARD_QUICKLAUNCH(inActor);
+	XfdashboardQuicklaunchPrivate	*priv=self->priv;
+	XfdashboardBackground			*background=XFDASHBOARD_BACKGROUND(inActor);
+	const XfdashboardGradientColor	*gradient;
+	const ClutterColor				*fill, *line;
+	ClutterColor					transparent={ 0, 0, 0, 0 };
+	ClutterActorBox					box;
+	ClutterPaintNode				*node;
+	gfloat							size[2], fillColor[4], lineColor[4];
+	gfloat							radius, lineWidth;
+	guint8							opacity;
+
+	if(clutter_feature_available(CLUTTER_FEATURE_SHADERS_GLSL))
+	{
+		if(!priv->dockPipeline)
+		{
+			CoglContext					*context;
+			CoglSnippet					*snippet;
+
+			context=clutter_backend_get_cogl_context(clutter_get_default_backend());
+			priv->dockPipeline=cogl_pipeline_new(context);
+			cogl_pipeline_set_layer_null_texture(priv->dockPipeline, 0, COGL_TEXTURE_TYPE_2D);
+			/* Shader output is translucent: make sure cogl does not disable blending */
+			cogl_pipeline_set_color4f(priv->dockPipeline, 1.0f, 1.0f, 1.0f, 0.5f);
+			cogl_pipeline_set_blend(priv->dockPipeline, "RGBA = ADD(SRC_COLOR, DST_COLOR*(1-SRC_COLOR[A]))", NULL);
+			snippet=cogl_snippet_new(COGL_SNIPPET_HOOK_FRAGMENT,
+										"uniform vec2 xfd_size;\n"
+										"uniform float xfd_radius;\n"
+										"uniform float xfd_line;\n"
+										"uniform vec4 xfd_fill;\n"
+										"uniform vec4 xfd_stroke;\n",
+										"vec2 xfd_p=cogl_tex_coord0_in.st*xfd_size;\n"
+										"vec2 xfd_q=abs(xfd_p-xfd_size*0.5)-(xfd_size*0.5-vec2(xfd_radius));\n"
+										"float xfd_d=length(max(xfd_q, vec2(0.0)))+min(max(xfd_q.x, xfd_q.y), 0.0)-xfd_radius;\n"
+										"float xfd_all=clamp(0.5-xfd_d, 0.0, 1.0);\n"
+										"float xfd_in=clamp(0.5-(xfd_d+xfd_line), 0.0, 1.0);\n"
+										"cogl_color_out=xfd_fill*xfd_in+xfd_stroke*(xfd_all-xfd_in);\n");
+			cogl_pipeline_add_snippet(priv->dockPipeline, snippet);
+			cogl_object_unref(snippet);
+		}
+
+		gradient=xfdashboard_background_get_fill_color(background);
+		fill=(gradient ? xfdashboard_gradient_color_get_solid_color(gradient) : NULL);
+		gradient=xfdashboard_background_get_outline_color(background);
+		line=(gradient ? xfdashboard_gradient_color_get_solid_color(gradient) : NULL);
+		if(!fill) fill=&transparent;
+		if(!line) line=&transparent;
+
+		opacity=clutter_actor_get_paint_opacity(inActor);
+		fillColor[3]=(fill->alpha/255.0f)*(opacity/255.0f);
+		fillColor[0]=(fill->red/255.0f)*fillColor[3];
+		fillColor[1]=(fill->green/255.0f)*fillColor[3];
+		fillColor[2]=(fill->blue/255.0f)*fillColor[3];
+		lineColor[3]=(line->alpha/255.0f)*(opacity/255.0f);
+		lineColor[0]=(line->red/255.0f)*lineColor[3];
+		lineColor[1]=(line->green/255.0f)*lineColor[3];
+		lineColor[2]=(line->blue/255.0f)*lineColor[3];
+
+		clutter_actor_get_allocation_box(inActor, &box);
+		box.x2=clutter_actor_box_get_width(&box)+priv->growRight;
+		box.y2=clutter_actor_box_get_height(&box);
+		box.x1=-priv->growLeft;
+		box.y1=-priv->growTop;
+		size[0]=box.x2-box.x1;
+		size[1]=box.y2-box.y1;
+
+		radius=MIN(xfdashboard_background_get_fill_corner_radius(background), MIN(size[0], size[1])/2.0f);
+		lineWidth=xfdashboard_background_get_outline_width(background);
+
+		cogl_pipeline_set_uniform_float(priv->dockPipeline, cogl_pipeline_get_uniform_location(priv->dockPipeline, "xfd_size"), 2, 1, size);
+		cogl_pipeline_set_uniform_1f(priv->dockPipeline, cogl_pipeline_get_uniform_location(priv->dockPipeline, "xfd_radius"), radius);
+		cogl_pipeline_set_uniform_1f(priv->dockPipeline, cogl_pipeline_get_uniform_location(priv->dockPipeline, "xfd_line"), lineWidth);
+		cogl_pipeline_set_uniform_float(priv->dockPipeline, cogl_pipeline_get_uniform_location(priv->dockPipeline, "xfd_fill"), 4, 1, fillColor);
+		cogl_pipeline_set_uniform_float(priv->dockPipeline, cogl_pipeline_get_uniform_location(priv->dockPipeline, "xfd_stroke"), 4, 1, lineColor);
+
+		node=clutter_pipeline_node_new(priv->dockPipeline);
+		clutter_paint_node_set_name(node, "dock-background");
+		clutter_paint_node_add_texture_rectangle(node, &box, 0.0f, 0.0f, 1.0f, 1.0f);
+		clutter_paint_node_add_child(inRootNode, node);
+		clutter_paint_node_unref(node);
+	}
+
+	/* Applications button while the applications view is open: a light band
+	 * the full height of the dock behind it, like Plank's active item: clear
+	 * at the top, brightest at the bottom, as wide as the item's slot
+	 */
+	if(priv->plankStyle &&
+		priv->appsButton &&
+		clutter_actor_is_visible(priv->appsButton) &&
+		xfdashboard_toggle_button_get_toggle_state(XFDASHBOARD_TOGGLE_BUTTON(priv->appsButton)))
+	{
+		ClutterActorBox					buttonBox, bandBox;
+		ClutterColor					bandColor={ 0xff, 0xff, 0xff, 0x48 };
+		gfloat							tx, ty, dw, dh;
+		gdouble							sx, sy;
+
+		if(!priv->activeTexture)
+		{
+			cairo_surface_t				*surface;
+			cairo_t						*cr;
+			cairo_pattern_t				*pattern;
+			CoglContext					*context;
+
+			surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 64);
+			cr=cairo_create(surface);
+			pattern=cairo_pattern_create_linear(0, 0, 0, 64);
+			cairo_pattern_add_color_stop_rgba(pattern, 0.0, 1.0, 1.0, 1.0, 0.0);
+			cairo_pattern_add_color_stop_rgba(pattern, 1.0, 1.0, 1.0, 1.0, 1.0);
+			cairo_set_source(cr, pattern);
+			cairo_paint(cr);
+			cairo_pattern_destroy(pattern);
+			cairo_destroy(cr);
+			cairo_surface_flush(surface);
+
+			context=clutter_backend_get_cogl_context(clutter_get_default_backend());
+			priv->activeTexture=COGL_TEXTURE(cogl_texture_2d_new_from_data(context, 1, 64,
+																		COGL_PIXEL_FORMAT_BGRA_8888_PRE,
+																		cairo_image_surface_get_stride(surface),
+																		cairo_image_surface_get_data(surface),
+																		NULL));
+			cairo_surface_destroy(surface);
+		}
+
+		clutter_actor_get_size(inActor, &dw, &dh);
+		clutter_actor_get_allocation_box(priv->appsButton, &buttonBox);
+		clutter_actor_get_translation(priv->appsButton, &tx, &ty, NULL);
+		clutter_actor_get_scale(priv->appsButton, &sx, &sy);
+
+		bandColor.alpha=(guint8)(bandColor.alpha*(clutter_actor_get_paint_opacity(inActor)/255.0f));
+		/* The item's slot: the button plus half the spacing on each side */
+		bandBox.x1=floorf(buttonBox.x1+tx-priv->spacing/2.0f);
+		bandBox.x2=ceilf(buttonBox.x1+tx+clutter_actor_box_get_width(&buttonBox)*(gfloat)sx+priv->spacing/2.0f);
+		bandBox.y1=-priv->growTop;
+		bandBox.y2=dh;
+
+		node=clutter_texture_node_new(priv->activeTexture, &bandColor, CLUTTER_SCALING_FILTER_LINEAR, CLUTTER_SCALING_FILTER_LINEAR);
+		clutter_paint_node_set_name(node, "dock-active-applications");
+		clutter_paint_node_add_rectangle(node, &bandBox);
+		clutter_paint_node_add_child(inRootNode, node);
+		clutter_paint_node_unref(node);
+	}
+
+	/* Running indicators like Plank: one small glowing blue dot per window
+	 * (up to three) near the bottom edge of the dock, under each icon.
+	 * Only for themes that opt in with "plank-style: true;"
+	 */
+	if(priv->plankStyle)
+	{
+		ClutterActor					*child;
+		gfloat							dw, dh, dotY=-1.0f;
+		ClutterPaintNode				*dotNode=NULL;
+
+		if(!priv->dotTexture)
+		{
+			/* Plank's running indicator copied pixel by pixel from its dock:
+			 * a 3x2 light blue core with a deeper blue rim (5x4) inside a
+			 * soft blue glow, 17x16 pixels around the dot's center. The glow
+			 * is the rim blue at the alpha measured over Plank's dock, so it
+			 * blends the same way on any dock color.
+			 */
+			static const guint8			dotAlpha[16][17]={
+				{ 0, 0, 0, 0, 0, 0, 8, 14, 17, 14, 8, 0, 0, 0, 0, 0, 0 },
+				{ 0, 0, 0, 0, 14, 29, 36, 37, 39, 37, 36, 29, 14, 0, 0, 0, 0 },
+				{ 0, 0, 0, 21, 35, 40, 43, 44, 46, 44, 43, 40, 35, 21, 0, 0, 0 },
+				{ 0, 0, 18, 36, 42, 48, 53, 57, 56, 57, 53, 48, 42, 36, 18, 0, 0 },
+				{ 0, 12, 31, 41, 49, 57, 62, 67, 69, 67, 62, 57, 49, 41, 31, 12, 0 },
+				{ 0, 20, 39, 46, 56, 64, 72, 96, 117, 96, 72, 64, 56, 46, 39, 20, 0 },
+				{ 7, 25, 42, 50, 60, 71, 135, 224, 255, 224, 135, 71, 60, 50, 42, 25, 7 },
+				{ 10, 29, 43, 53, 64, 93, 186, 255, 255, 255, 186, 93, 64, 53, 43, 29, 10 },
+				{ 10, 30, 43, 53, 64, 93, 186, 255, 255, 255, 186, 93, 64, 53, 43, 30, 10 },
+				{ 9, 27, 42, 52, 61, 71, 135, 224, 255, 224, 135, 71, 61, 52, 42, 27, 9 },
+				{ 0, 20, 39, 46, 56, 64, 72, 96, 117, 96, 72, 64, 56, 46, 39, 20, 0 },
+				{ 0, 12, 31, 41, 49, 57, 62, 67, 69, 67, 62, 57, 49, 41, 31, 12, 0 },
+				{ 0, 0, 18, 36, 42, 48, 53, 57, 56, 57, 53, 48, 42, 36, 18, 0, 0 },
+				{ 0, 0, 0, 21, 35, 40, 43, 44, 46, 44, 43, 40, 35, 21, 0, 0, 0 },
+				{ 0, 0, 0, 0, 14, 29, 36, 37, 39, 37, 36, 29, 14, 0, 0, 0, 0 },
+				{ 0, 0, 0, 0, 0, 0, 8, 14, 17, 14, 8, 0, 0, 0, 0, 0, 0 },
+			};
+			guint8						data[16*17*4];
+			CoglContext					*context;
+			gint						row, col;
+
+			for(row=0; row<16; row++)
+			{
+				for(col=0; col<17; col++)
+				{
+					guint8				*px=&data[((row*17)+col)*4];
+					guint				r=0x0a, g=0x53, b=0xcc, a=dotAlpha[row][col];
+
+					if((row==7 || row==8) && col>=7 && col<=9)
+					{
+						if(col==8) { r=0x60; g=0x99; b=0xf7; }
+							else { r=0x35; g=0x76; b=0xe1; }
+						a=0xff;
+					}
+					/* BGRA, premultiplied */
+					px[0]=(guint8)((b*a)/255);
+					px[1]=(guint8)((g*a)/255);
+					px[2]=(guint8)((r*a)/255);
+					px[3]=(guint8)a;
+				}
+			}
+
+			context=clutter_backend_get_cogl_context(clutter_get_default_backend());
+			priv->dotTexture=COGL_TEXTURE(cogl_texture_2d_new_from_data(context, 17, 16,
+																		COGL_PIXEL_FORMAT_BGRA_8888_PRE,
+																		17*4,
+																		data,
+																		NULL));
+		}
+
+		clutter_actor_get_size(inActor, &dw, &dh);
+		for(child=clutter_actor_get_first_child(inActor); child && priv->dotTexture; child=clutter_actor_get_next_sibling(child))
+		{
+			ClutterActorBox				childBox;
+			GAppInfo					*appInfo;
+			const GList					*windows;
+			gint						count, k;
+			gfloat						tx, ty, cx;
+			gdouble						sx, sy;
+
+			if(!clutter_actor_is_visible(child)) continue;
+			if(!XFDASHBOARD_IS_APPLICATION_BUTTON(child)) continue;
+			if(!xfdashboard_stylable_has_class(XFDASHBOARD_STYLABLE(child), "running")) continue;
+
+			appInfo=xfdashboard_application_button_get_app_info(XFDASHBOARD_APPLICATION_BUTTON(child));
+			if(!appInfo) continue;
+			windows=xfdashboard_application_tracker_get_window_list_by_app_info(priv->appTracker, appInfo);
+			count=MIN(3, (gint)g_list_length((GList*)windows));
+			if(count<1) count=1;
+
+			clutter_actor_get_allocation_box(child, &childBox);
+			clutter_actor_get_translation(child, &tx, &ty, NULL);
+			clutter_actor_get_scale(child, &sx, &sy);
+
+			/* Like Plank: the dot's center sits 2px above the dock's bottom
+			 * edge, so its rim touches the edge
+			 */
+			if(dotY<0.0f) dotY=floorf(dh)-2.0f;
+
+			cx=childBox.x1+tx+((clutter_actor_box_get_width(&childBox)*(gfloat)sx)/2.0f);
+			/* Pixel-exact: no filtering, whole pixels */
+			if(!dotNode) dotNode=clutter_texture_node_new(priv->dotTexture, NULL, CLUTTER_SCALING_FILTER_NEAREST, CLUTTER_SCALING_FILTER_NEAREST);
+			for(k=0; k<count; k++)
+			{
+				ClutterActorBox			dotBox;
+				gfloat					dx=cx+((k-((count-1)/2.0f))*6.0f);
+				gfloat					ty2=1.0f;
+
+				dotBox.x1=floorf(dx)-8.0f;
+				dotBox.x2=dotBox.x1+17.0f;
+				dotBox.y1=dotY-8.0f;
+				dotBox.y2=dotBox.y1+16.0f;
+
+				/* Like Plank, the glow stays inside the dock: cut it at the
+				 * dock's bottom edge
+				 */
+				if(dotBox.y2>floorf(dh))
+				{
+					ty2=(floorf(dh)-dotBox.y1)/16.0f;
+					dotBox.y2=floorf(dh);
+				}
+				clutter_paint_node_add_texture_rectangle(dotNode, &dotBox, 0.0f, 0.0f, 1.0f, ty2);
+			}
+		}
+
+		if(dotNode)
+		{
+			clutter_paint_node_set_name(dotNode, "dock-running-dots");
+			clutter_paint_node_add_child(inRootNode, dotNode);
+			clutter_paint_node_unref(dotNode);
+		}
+	}
+
+	/* Divider between pinned and other running applications: a thin line in
+	 * the dock's outline color (a bit stronger) over the middle of its height
+	 */
+	if(priv->separatorCount>0)
+	{
+		gint							k;
+		const XfdashboardGradientColor	*fillGradient;
+		const ClutterColor				*fillSolid;
+		ClutterColor					dividerColor={ 0x00, 0x00, 0x00, 0x66 };
+		ClutterActorBox					dividerBox;
+		gfloat							dw, dh, luminance;
+
+		/* Like Plank: dark line (40% black) on a light dock, light line
+		 * (30% white) on a dark dock
+		 */
+		fillGradient=xfdashboard_background_get_fill_color(XFDASHBOARD_BACKGROUND(inActor));
+		fillSolid=(fillGradient ? xfdashboard_gradient_color_get_solid_color(fillGradient) : NULL);
+		if(fillSolid)
+		{
+			luminance=(0.2126f*fillSolid->red)+(0.7152f*fillSolid->green)+(0.0722f*fillSolid->blue);
+			if(luminance<128.0f)
+			{
+				dividerColor.red=dividerColor.green=dividerColor.blue=0xff;
+				dividerColor.alpha=0x4d;
+			}
+		}
+		dividerColor.alpha=(guint8)((dividerColor.alpha*clutter_actor_get_paint_opacity(inActor))/255);
+
+		clutter_actor_get_size(inActor, &dw, &dh);
+		node=clutter_color_node_new(&dividerColor);
+		clutter_paint_node_set_name(node, "dock-divider");
+		for(k=0; k<priv->separatorCount; k++)
+		{
+			if(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL)
+			{
+				dividerBox.x1=floorf(priv->separatorX[k]-1.0f);
+				dividerBox.x2=dividerBox.x1+2.0f;
+				dividerBox.y1=floorf(dh*0.22f);
+				dividerBox.y2=ceilf(dh*0.78f);
+			}
+				else
+				{
+					dividerBox.y1=floorf(priv->separatorX[k]-1.0f);
+					dividerBox.y2=dividerBox.y1+2.0f;
+					dividerBox.x1=floorf(dw*0.22f);
+					dividerBox.x2=ceilf(dw*0.78f);
+				}
+			clutter_paint_node_add_rectangle(node, &dividerBox);
+		}
+		clutter_paint_node_add_child(inRootNode, node);
+		clutter_paint_node_unref(node);
+	}
+
+	/* Let parent draw whatever the theme set up (normally nothing: background-type none) */
+	if(CLUTTER_ACTOR_CLASS(xfdashboard_quicklaunch_parent_class)->paint_node)
+	{
+		CLUTTER_ACTOR_CLASS(xfdashboard_quicklaunch_parent_class)->paint_node(inActor, inRootNode);
+	}
+}
+
+static gboolean _xfdashboard_quicklaunch_get_paint_volume(ClutterActor *inActor, ClutterPaintVolume *ioVolume)
+{
+	XfdashboardQuicklaunchPrivate	*priv=XFDASHBOARD_QUICKLAUNCH(inActor)->priv;
+	ClutterActorBox					box;
+	ClutterVertex					origin;
+
+	if(!clutter_actor_has_allocation(inActor)) return(FALSE);
+
+	clutter_actor_get_allocation_box(inActor, &box);
+	origin.x=-priv->growLeft;
+	origin.y=-priv->growTop;
+	origin.z=0.0f;
+	clutter_paint_volume_set_origin(ioVolume, &origin);
+	clutter_paint_volume_set_width(ioVolume, MAX(0.0f, clutter_actor_box_get_width(&box)+priv->growLeft+priv->growRight));
+	clutter_paint_volume_set_height(ioVolume, MAX(0.0f, clutter_actor_box_get_height(&box)+priv->growTop));
+	return(TRUE);
+}
+
 static void _xfdashboard_quicklaunch_allocate(ClutterActor *inActor,
 												const ClutterActorBox *inBox,
 												ClutterAllocationFlags inFlags)
@@ -2531,6 +3371,7 @@ static void _xfdashboard_quicklaunch_allocate(ClutterActor *inActor,
 	ClutterActorBox					oldChildAllocation={ 0, };
 	gboolean						fixedPosition;
 	gfloat							fixedX, fixedY;
+	gfloat							separatorGap;
 
 	/* Chain up to store the allocation of the actor */
 	CLUTTER_ACTOR_CLASS(xfdashboard_quicklaunch_parent_class)->allocate(inActor, inBox, inFlags);
@@ -2550,9 +3391,20 @@ static void _xfdashboard_quicklaunch_allocate(ClutterActor *inActor,
 
 	/* Calculate new position and size of visible children */
 	childAllocation.x1=childAllocation.y1=priv->spacing;
+	separatorGap=_xfdashboard_quicklaunch_get_separator_gap(self);
 	clutter_actor_iter_init(&iter, CLUTTER_ACTOR(inActor));
 	while(clutter_actor_iter_next(&iter, &child))
 	{
+		/* Leave room for the divider */
+		if(_xfdashboard_quicklaunch_is_divider(self, child))
+		{
+			if(separatorGap<=0.0f || !_xfdashboard_quicklaunch_divider_active(self, child)) continue;
+
+			if(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL) childAllocation.x1=ceil(childAllocation.x1+_xfdashboard_quicklaunch_get_divider_width(self));
+				else childAllocation.y1=ceil(childAllocation.y1+_xfdashboard_quicklaunch_get_divider_width(self));
+			continue;
+		}
+
 		/* Is child visible? */
 		if(!clutter_actor_is_visible(child)) continue;
 
@@ -2576,7 +3428,6 @@ static void _xfdashboard_quicklaunch_allocate(ClutterActor *inActor,
 				childAllocation.y2=ceil(childAllocation.y1+childHeight);
 			}
 
-		clutter_actor_set_scale(child, priv->scaleCurrent, priv->scaleCurrent);
 
 		/* Respect fixed position of child */
 		g_object_get(child,
@@ -2618,6 +3469,9 @@ static void _xfdashboard_quicklaunch_allocate(ClutterActor *inActor,
 		if(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL) childAllocation.x1=ceil(childAllocation.x1+childWidth+priv->spacing);
 			else childAllocation.y1=ceil(childAllocation.y1+childHeight+priv->spacing);
 	}
+
+	/* Layout scale combined with hover zoom */
+	_xfdashboard_quicklaunch_update_zoom(self);
 }
 
 /* IMPLEMENTATION: Interface XfdashboardFocusable */
@@ -2889,6 +3743,20 @@ static void _xfdashboard_quicklaunch_dispose(GObject *inObject)
 	XfdashboardQuicklaunchPrivate	*priv=XFDASHBOARD_QUICKLAUNCH(inObject)->priv;
 
 	/* Release our allocated variables */
+	if(priv->dockPipeline)
+	{
+		cogl_object_unref(priv->dockPipeline);
+		priv->dockPipeline=NULL;
+	}
+
+	if(priv->zoomTimeline)
+	{
+		clutter_timeline_stop(priv->zoomTimeline);
+		g_signal_handlers_disconnect_by_data(priv->zoomTimeline, inObject);
+		g_object_unref(priv->zoomTimeline);
+		priv->zoomTimeline=NULL;
+	}
+
 	if(priv->settingsFavouritesBinding)
 	{
 		g_object_unref(priv->settingsFavouritesBinding);
@@ -2917,6 +3785,24 @@ static void _xfdashboard_quicklaunch_dispose(GObject *inObject)
 	{
 		clutter_actor_destroy(priv->separatorFavouritesToDynamic);
 		priv->separatorFavouritesToDynamic=NULL;
+	}
+
+	if(priv->windowsChangedIdleID)
+	{
+		g_source_remove(priv->windowsChangedIdleID);
+		priv->windowsChangedIdleID=0;
+	}
+
+	if(priv->dotTexture)
+	{
+		cogl_object_unref(priv->dotTexture);
+		priv->dotTexture=NULL;
+	}
+
+	if(priv->activeTexture)
+	{
+		cogl_object_unref(priv->activeTexture);
+		priv->activeTexture=NULL;
 	}
 
 	if(priv->settings)
@@ -2951,6 +3837,21 @@ static void _xfdashboard_quicklaunch_set_property(GObject *inObject,
 			xfdashboard_quicklaunch_set_spacing(self, g_value_get_float(inValue));
 			break;
 
+		case PROP_PLANK_STYLE:
+			if(self->priv->plankStyle!=g_value_get_boolean(inValue))
+			{
+				self->priv->plankStyle=g_value_get_boolean(inValue);
+				/* Apps button place, dividers and anchored items depend on it */
+				if(self->priv->favourites) _xfdashboard_quicklaunch_update_icons_from_property(self);
+				clutter_actor_queue_relayout(CLUTTER_ACTOR(self));
+			}
+			break;
+
+		case PROP_HOVER_ZOOM:
+			self->priv->hoverZoom=MAX(1.0f, g_value_get_float(inValue));
+			clutter_actor_queue_relayout(CLUTTER_ACTOR(self));
+			break;
+
 		case PROP_ORIENTATION:
 			xfdashboard_quicklaunch_set_orientation(self, g_value_get_enum(inValue));
 			break;
@@ -2983,6 +3884,14 @@ static void _xfdashboard_quicklaunch_get_property(GObject *inObject,
 			g_value_set_float(outValue, priv->spacing);
 			break;
 
+		case PROP_PLANK_STYLE:
+			g_value_set_boolean(outValue, priv->plankStyle);
+			break;
+
+		case PROP_HOVER_ZOOM:
+			g_value_set_float(outValue, priv->hoverZoom);
+			break;
+
 		case PROP_ORIENTATION:
 			g_value_set_enum(outValue, priv->orientation);
 			break;
@@ -3011,6 +3920,8 @@ static void xfdashboard_quicklaunch_class_init(XfdashboardQuicklaunchClass *klas
 	clutterActorClass->get_preferred_width=_xfdashboard_quicklaunch_get_preferred_width;
 	clutterActorClass->get_preferred_height=_xfdashboard_quicklaunch_get_preferred_height;
 	clutterActorClass->allocate=_xfdashboard_quicklaunch_allocate;
+	clutterActorClass->paint_node=_xfdashboard_quicklaunch_paint_node;
+	clutterActorClass->get_paint_volume=_xfdashboard_quicklaunch_get_paint_volume;
 
 	klass->selection_add_favourite=_xfdashboard_quicklaunch_selection_add_favourite;
 	klass->selection_remove_favourite=_xfdashboard_quicklaunch_selection_remove_favourite;
@@ -3049,6 +3960,21 @@ static void xfdashboard_quicklaunch_class_init(XfdashboardQuicklaunchClass *klas
 								0.0,
 								G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+	XfdashboardQuicklaunchProperties[PROP_HOVER_ZOOM]=
+		g_param_spec_float("hover-zoom",
+								"Hover zoom",
+								"Zoom factor of item under pointer (1.0 = no zoom)",
+								1.0, 3.0,
+								1.0,
+								G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+	XfdashboardQuicklaunchProperties[PROP_PLANK_STYLE]=
+		g_param_spec_boolean("plank-style",
+								"Plank style",
+								"Draw Plank-like running dots and active band (theme opt-in)",
+								FALSE,
+								G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
 	XfdashboardQuicklaunchProperties[PROP_ORIENTATION]=
 		g_param_spec_enum("orientation",
 							"Orientation",
@@ -3062,6 +3988,8 @@ static void xfdashboard_quicklaunch_class_init(XfdashboardQuicklaunchClass *klas
 	/* Define stylable properties */
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardQuicklaunchProperties[PROP_NORMAL_ICON_SIZE]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardQuicklaunchProperties[PROP_SPACING]);
+	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardQuicklaunchProperties[PROP_HOVER_ZOOM]);
+	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardQuicklaunchProperties[PROP_PLANK_STYLE]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardQuicklaunchProperties[PROP_ORIENTATION]);
 
 	/* Define signals */
@@ -3188,6 +4116,8 @@ static void xfdashboard_quicklaunch_init(XfdashboardQuicklaunch *self)
 	/* Set up default values */
 	priv->favourites=NULL;
 	priv->spacing=0.0f;
+	priv->hoverZoom=1.0f;
+	priv->plankStyle=FALSE;
 	priv->orientation=CLUTTER_ORIENTATION_VERTICAL;
 	priv->normalIconSize=1.0f;
 	priv->scaleCurrent=DEFAULT_SCALE_MAX;
@@ -3202,6 +4132,26 @@ static void xfdashboard_quicklaunch_init(XfdashboardQuicklaunch *self)
 
 	/* Set up this actor */
 	clutter_actor_set_reactive(CLUTTER_ACTOR(self), TRUE);
+
+	/* Hover zoom of items */
+	priv->zoomPointer=-1.0f;
+	priv->separatorCount=0;
+	g_signal_connect(self, "actor-added", G_CALLBACK(_xfdashboard_quicklaunch_on_actor_added), NULL);
+	priv->dotTexture=NULL;
+	priv->activeTexture=NULL;
+	priv->windowsChangedIdleID=0;
+	{
+		XfdashboardWindowTracker	*windowTracker=xfdashboard_core_get_window_tracker(NULL);
+
+		g_signal_connect_object(windowTracker, "window-opened", G_CALLBACK(_xfdashboard_quicklaunch_on_windows_changed), self, G_CONNECT_SWAPPED);
+		g_signal_connect_object(windowTracker, "window-closed", G_CALLBACK(_xfdashboard_quicklaunch_on_windows_changed), self, G_CONNECT_SWAPPED);
+	}
+	priv->zoomStrength=priv->zoomStrengthFrom=priv->zoomStrengthTo=0.0f;
+	priv->zoomTimeline=clutter_timeline_new(180);
+	clutter_timeline_set_progress_mode(priv->zoomTimeline, CLUTTER_EASE_OUT_CUBIC);
+	g_signal_connect(priv->zoomTimeline, "new-frame", G_CALLBACK(_xfdashboard_quicklaunch_zoom_on_new_frame), self);
+	g_signal_connect(self, "captured-event", G_CALLBACK(_xfdashboard_quicklaunch_on_captured_event), NULL);
+	g_signal_connect(self, "leave-event", G_CALLBACK(_xfdashboard_quicklaunch_on_leave), NULL);
 	requestMode=(priv->orientation==CLUTTER_ORIENTATION_HORIZONTAL ? CLUTTER_REQUEST_HEIGHT_FOR_WIDTH : CLUTTER_REQUEST_WIDTH_FOR_HEIGHT);
 	clutter_actor_set_request_mode(CLUTTER_ACTOR(self), requestMode);
 

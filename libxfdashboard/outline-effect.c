@@ -45,6 +45,8 @@ struct _XfdashboardOutlineEffectPrivate
 	XfdashboardBorders			borders;
 	XfdashboardCorners			corners;
 	gfloat						cornersRadius;
+	gfloat						outset;
+	gfloat						innerRadius;	/* <0: use cornersRadius */
 
 	/* Instance related */
 	CoglPipeline				*pipeline;
@@ -227,6 +229,7 @@ static void _xfdashboard_outline_effect_draw_outline_intern(XfdashboardOutlineEf
 		/* Set up path for flat lines without rounded corners */
 		else
 		{
+			cairo_set_line_cap(inContext, CAIRO_LINE_CAP_SQUARE);
 			/* Top border */
 			if(priv->borders & XFDASHBOARD_BORDERS_TOP)
 			{
@@ -611,7 +614,18 @@ static CoglTexture* _xfdashboard_outline_effect_create_texture(XfdashboardOutlin
 		cairoContext=cairo_create(cairoSurface);
 
 		priv->drawLineWidth=floor(priv->width+0.5f);
-		priv->drawRadius=MAX(priv->cornersRadius, priv->drawLineWidth);
+		if(priv->innerRadius>=0.0f)
+		{
+			/* Concentric to the wrapped shape: the inner edge of the line has
+			 * the shape's radius, the outer edge radius plus line width.
+			 */
+			priv->drawRadius=MAX(priv->innerRadius-0.5f, 0.0f)+(priv->drawLineWidth/2.0f);
+		}
+			else if(priv->cornersRadius>0.0f)
+			{
+				priv->drawRadius=MAX(priv->cornersRadius, priv->drawLineWidth);
+			}
+			else priv->drawRadius=0.0f;
 
 		if(priv->drawLineWidth<2 ||
 			xfdashboard_gradient_color_get_gradient_type(priv->color)!=XFDASHBOARD_GRADIENT_TYPE_PATH_GRADIENT)
@@ -666,6 +680,8 @@ static void _xfdashboard_outline_effect_paint(ClutterEffect *inEffect, ClutterEf
 	ClutterActor						*target;
 	gfloat								width, height;
 	CoglFramebuffer						*framebuffer;
+	gfloat								originX, originY, innerRadius;
+	XfdashboardOutlineInnerShape		*shape;
 
 	g_return_if_fail(XFDASHBOARD_IS_OUTLINE_EFFECT(inEffect));
 
@@ -676,8 +692,36 @@ static void _xfdashboard_outline_effect_paint(ClutterEffect *inEffect, ClutterEf
 	target=clutter_actor_meta_get_actor(CLUTTER_ACTOR_META(self));
 	clutter_actor_continue_paint(target);
 
-	/* Get size of outline to draw */
+	/* Get size of outline to draw. An actor may exclude a strip at its bottom
+	 * (e.g. live workspace with name shown below the preview).
+	 */
 	clutter_actor_get_size(target, &width, &height);
+	height-=(gfloat)GPOINTER_TO_INT(g_object_get_data(G_OBJECT(target), "xfdashboard-outline-bottom-inset"));
+	originX=originY=0.0f;
+	innerRadius=-1.0f;
+
+	/* Wrap the exact shape the actor told us about (e.g. the visible window
+	 * preview inside a live window), with pixel-aligned edges
+	 */
+	shape=g_object_get_data(G_OBJECT(target), XFDASHBOARD_OUTLINE_EFFECT_INNER_SHAPE_KEY);
+	if(shape && shape->width>=1.0f && shape->height>=1.0f)
+	{
+		originX=floorf(shape->x+0.5f);
+		originY=floorf(shape->y+0.5f);
+		width=floorf(shape->x+shape->width+0.5f)-originX;
+		height=floorf(shape->y+shape->height+0.5f)-originY;
+		if(shape->radius>=0.0f) innerRadius=floorf(shape->radius*2.0f+0.5f)/2.0f;
+	}
+
+	if(innerRadius!=priv->innerRadius)
+	{
+		priv->innerRadius=innerRadius;
+		_xfdashboard_outline_effect_invalidate(self);
+	}
+
+	/* Optionally draw around (outside) the actor instead of inside it */
+	width+=2.0f*priv->outset;
+	height+=2.0f*priv->outset;
 
 	/* Do not draw outline if this effect is not enabled or if width or height
 	 * is below 1 pixel as the texture will be invalid and causes trouble
@@ -723,8 +767,40 @@ static void _xfdashboard_outline_effect_paint(ClutterEffect *inEffect, ClutterEf
 	framebuffer=cogl_get_draw_framebuffer();
 	cogl_framebuffer_draw_textured_rectangle(framebuffer,
 												priv->pipeline,
-												0, 0, width, height,
+												originX-priv->outset, originY-priv->outset, originX+width-priv->outset, originY+height-priv->outset,
 												0.0f, 0.0f, 1.0f, 1.0f);
+}
+
+/* Grow paint volume if outline is drawn outside of actor */
+static gboolean _xfdashboard_outline_effect_modify_paint_volume(ClutterEffect *inEffect, ClutterPaintVolume *ioVolume)
+{
+	XfdashboardOutlineEffectPrivate		*priv=XFDASHBOARD_OUTLINE_EFFECT(inEffect)->priv;
+	ClutterVertex						origin;
+
+	if(priv->outset<=0.0f) return(TRUE);
+
+	clutter_paint_volume_get_origin(ioVolume, &origin);
+	origin.x-=priv->outset;
+	origin.y-=priv->outset;
+	clutter_paint_volume_set_origin(ioVolume, &origin);
+	clutter_paint_volume_set_width(ioVolume, MAX(0.0f, clutter_paint_volume_get_width(ioVolume)+2.0f*priv->outset));
+	clutter_paint_volume_set_height(ioVolume, MAX(0.0f, clutter_paint_volume_get_height(ioVolume)+2.0f*priv->outset));
+	return(TRUE);
+}
+
+void xfdashboard_outline_effect_set_outset(XfdashboardOutlineEffect *self, const gfloat inOutset)
+{
+	g_return_if_fail(XFDASHBOARD_IS_OUTLINE_EFFECT(self));
+
+	if(self->priv->outset!=inOutset)
+	{
+		ClutterActor					*target;
+
+		self->priv->outset=MAX(0.0f, inOutset);
+		_xfdashboard_outline_effect_invalidate(self);
+		target=clutter_actor_meta_get_actor(CLUTTER_ACTOR_META(self));
+		if(target) clutter_actor_queue_redraw(target);
+	}
 }
 
 
@@ -853,6 +929,7 @@ static void xfdashboard_outline_effect_class_init(XfdashboardOutlineEffectClass 
 	gobjectClass->get_property=_xfdashboard_outline_effect_get_property;
 
 	effectClass->paint=_xfdashboard_outline_effect_paint;
+	effectClass->get_paint_volume=_xfdashboard_outline_effect_modify_paint_volume;
 
 	/* Define properties */
 	XfdashboardOutlineEffectProperties[PROP_COLOR]=
@@ -912,6 +989,7 @@ static void xfdashboard_outline_effect_init(XfdashboardOutlineEffect *self)
 	priv->borders=XFDASHBOARD_BORDERS_ALL;
 	priv->corners=XFDASHBOARD_CORNERS_ALL;
 	priv->cornersRadius=0.0f;
+	priv->innerRadius=-1.0f;
 	priv->texture=NULL;
 
 	/* Set up pipeline */

@@ -29,6 +29,7 @@
 #include "recently-used-search-provider.h"
 
 #include <glib/gi18n-lib.h>
+#include <string.h>
 #include <gtk/gtk.h>
 
 
@@ -401,7 +402,10 @@ static ClutterActor* _xfdashboard_recently_used_search_provider_create_result_ac
 	name=gtk_recent_info_get_display_name(info);
 	icon=gtk_recent_info_get_gicon(info);
 
-	description=gtk_recent_info_get_description(info);
+	/* Show the file type, not the free text description some applications
+	 * store there (e.g. gedit: "Language: ; Encoding: UTF-8; Cursor: 0:0;")
+	 */
+	description=NULL;
 	if(!description)
 	{
 		const gchar									*mimeType;
@@ -418,11 +422,33 @@ static ClutterActor* _xfdashboard_recently_used_search_provider_create_result_ac
 	}
 		else titleDescription=g_strdup(description);
 
-	/* Create actor for result item */
-	title=g_markup_printf_escaped("<b>%s</b>\n<small><i>%s</i></small>\n\n%s",
-									name,
-									uri,
-									titleDescription);
+	/* Create actor for result item: name and below in one small line the
+	 * type and the folder (readable path with ~ instead of an escaped URI),
+	 * like the other search results.
+	 */
+	{
+		gchar										*location;
+		gchar										*folder;
+
+		location=gtk_recent_info_get_uri_display(info);
+		if(!location) location=g_strdup(uri);
+		folder=g_path_get_dirname(location);
+		if(g_str_has_prefix(folder, g_get_home_dir()))
+		{
+			gchar									*shortFolder;
+
+			shortFolder=g_strconcat("~", folder+strlen(g_get_home_dir()), NULL);
+			g_free(folder);
+			folder=shortFolder;
+		}
+
+		title=g_markup_printf_escaped("%s\n<small>%s  ·  %s</small>",
+										name,
+										titleDescription ? titleDescription : "",
+										folder);
+		g_free(folder);
+		g_free(location);
+	}
 	actor=xfdashboard_button_new_full_with_gicon(icon, title);
 	g_free(title);
 

@@ -27,14 +27,19 @@
 
 #include <glib/gi18n-lib.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <libxfdashboard/application-tracker.h>
+#include <libxfdashboard/desktop-app-info.h>
 
 #include <libxfdashboard/core.h>
 #include <libxfdashboard/application-database.h>
 #include <libxfdashboard/window-tracker.h>
 #include <libxfdashboard/marshal.h>
 #include <libxfdashboard/debug.h>
+#include <libxfdashboard/settings.h>
+#include <libxfdashboard/x11/window-tracker-window-x11.h>
 
 
 /* Define this class in GObject system */
@@ -210,7 +215,28 @@ static XfdashboardApplicationTrackerItem* _xfdashboard_application_tracker_find_
 	g_return_val_if_fail(XFDASHBOARD_IS_APPLICATION_TRACKER(self), NULL);
 	g_return_val_if_fail(G_IS_APP_INFO(inAppInfo), NULL);
 
-	return(_xfdashboard_application_tracker_find_item_by_desktop_id(self, g_app_info_get_id(inAppInfo)));
+	/* Applications created from a .desktop file path (not found in the
+	 * application database) have no desktop ID: fall back to the file name
+	 */
+	{
+		const gchar							*desktopID;
+		XfdashboardApplicationTrackerItem	*item=NULL;
+
+		desktopID=g_app_info_get_id(inAppInfo);
+		if(desktopID && *desktopID) return(_xfdashboard_application_tracker_find_item_by_desktop_id(self, desktopID));
+
+		if(XFDASHBOARD_IS_DESKTOP_APP_INFO(inAppInfo))
+		{
+			GFile							*file;
+			gchar							*basename;
+
+			file=xfdashboard_desktop_app_info_get_file(XFDASHBOARD_DESKTOP_APP_INFO(inAppInfo));
+			basename=(file ? g_file_get_basename(file) : NULL);
+			if(basename && *basename) item=_xfdashboard_application_tracker_find_item_by_desktop_id(self, basename);
+			g_free(basename);
+		}
+		return(item);
+	}
 }
 
 /* Find application tracker item by window */
@@ -547,6 +573,203 @@ static GAppInfo* _xfdashboard_application_tracker_get_desktop_id_from_environmen
 	return(foundAppInfo);
 }
 
+/* Pinned (favourite) applications win: a window often resolves to another
+ * desktop file than the one pinned in the dock (e.g. a terminal started by a
+ * shortcut, an app with several .desktop files). Then the dock showed the
+ * pinned icon and a second "running" icon for the same window. If the window
+ * clearly belongs to a pinned application (same WM class, executable or
+ * desktop ID name) attribute it to the pinned one.
+ */
+static gchar* _xfdashboard_application_tracker_normalize_name(const gchar *inName)
+{
+	gchar		*name, *lower, *p;
+
+	if(!inName || !*inName) return(NULL);
+
+	name=g_path_get_basename(inName);
+	if(g_str_has_suffix(name, ".desktop")) name[strlen(name)-8]=0;
+	lower=g_utf8_strdown(name, -1);
+	g_free(name);
+
+	/* reverse-DNS IDs: keep last component (com.rtosta.zapzap -> zapzap) */
+	p=strrchr(lower, '.');
+	if(p && p[1])
+	{
+		gchar	*last=g_strdup(p+1);
+
+		g_free(lower);
+		lower=last;
+	}
+	return(lower);
+}
+
+static gboolean _xfdashboard_application_tracker_is_generic_launcher(const gchar *inName)
+{
+	static const gchar	*generic[]={ "env", "sh", "bash", "flatpak", "snap", "exo-open", "gtk-launch",
+										"xdg-open", "python", "python3", "java", "electron", "wine", "gio", NULL };
+	gint				i;
+
+	if(!inName || !*inName) return(TRUE);
+	for(i=0; generic[i]; i++) if(g_strcmp0(inName, generic[i])==0) return(TRUE);
+	return(FALSE);
+}
+
+static void _xfdashboard_application_tracker_add_name(GPtrArray *ioNames, const gchar *inName)
+{
+	gchar		*name;
+
+	name=_xfdashboard_application_tracker_normalize_name(inName);
+	if(name && !_xfdashboard_application_tracker_is_generic_launcher(name)) g_ptr_array_add(ioNames, name);
+		else g_free(name);
+}
+
+static gboolean _xfdashboard_application_tracker_names_match(GPtrArray *inA, GPtrArray *inB)
+{
+	guint		i, j;
+
+	for(i=0; i<inA->len; i++)
+	{
+		for(j=0; j<inB->len; j++)
+		{
+			if(g_strcmp0(g_ptr_array_index(inA, i), g_ptr_array_index(inB, j))==0) return(TRUE);
+		}
+	}
+	return(FALSE);
+}
+
+/* Names identifying an application: desktop ID, executable, start-up WM class */
+static GPtrArray* _xfdashboard_application_tracker_get_app_names(GAppInfo *inAppInfo)
+{
+	GPtrArray	*names;
+
+	names=g_ptr_array_new_with_free_func(g_free);
+	_xfdashboard_application_tracker_add_name(names, g_app_info_get_id(inAppInfo));
+	/* The executable only identifies the application if it does not name its
+	 * windows itself (web apps share the browser's executable but have their
+	 * own start-up WM class)
+	 */
+	if(!XFDASHBOARD_IS_DESKTOP_APP_INFO(inAppInfo) ||
+		!xfdashboard_desktop_app_info_has_key(XFDASHBOARD_DESKTOP_APP_INFO(inAppInfo), G_KEY_FILE_DESKTOP_KEY_STARTUP_WM_CLASS))
+	{
+		_xfdashboard_application_tracker_add_name(names, g_app_info_get_executable(inAppInfo));
+	}
+	if(XFDASHBOARD_IS_DESKTOP_APP_INFO(inAppInfo) &&
+		xfdashboard_desktop_app_info_has_key(XFDASHBOARD_DESKTOP_APP_INFO(inAppInfo), G_KEY_FILE_DESKTOP_KEY_STARTUP_WM_CLASS))
+	{
+		gchar	*wmClass;
+
+		wmClass=xfdashboard_desktop_app_info_get_string(XFDASHBOARD_DESKTOP_APP_INFO(inAppInfo), G_KEY_FILE_DESKTOP_KEY_STARTUP_WM_CLASS);
+		if(wmClass) _xfdashboard_application_tracker_add_name(names, wmClass);
+		g_free(wmClass);
+	}
+	return(names);
+}
+
+/* Names identifying a window: WM class and instance, process name */
+static GPtrArray* _xfdashboard_application_tracker_get_window_names(XfdashboardWindowTrackerWindow *inWindow)
+{
+	GPtrArray	*names;
+	gint		pid;
+
+	names=g_ptr_array_new_with_free_func(g_free);
+
+	if(XFDASHBOARD_IS_WINDOW_TRACKER_WINDOW_X11(inWindow))
+	{
+		WnckWindow	*wnckWindow;
+
+		wnckWindow=xfdashboard_window_tracker_window_x11_get_window(XFDASHBOARD_WINDOW_TRACKER_WINDOW_X11(inWindow));
+		if(wnckWindow)
+		{
+			const gchar	*value;
+
+			value=wnck_window_get_class_group_name(wnckWindow);
+			if(value && *value) _xfdashboard_application_tracker_add_name(names, value);
+			value=wnck_window_get_class_instance_name(wnckWindow);
+			if(value && *value) _xfdashboard_application_tracker_add_name(names, value);
+		}
+	}
+
+	pid=xfdashboard_window_tracker_window_get_pid(inWindow);
+	if(pid>0)
+	{
+		gchar	*path, *comm=NULL;
+
+		path=g_strdup_printf("/proc/%d/comm", pid);
+		if(g_file_get_contents(path, &comm, NULL, NULL) && comm)
+		{
+			g_strstrip(comm);
+			_xfdashboard_application_tracker_add_name(names, comm);
+		}
+		g_free(comm);
+		g_free(path);
+
+		path=g_strdup_printf("/proc/%d/exe", pid);
+		comm=g_file_read_link(path, NULL);
+		if(comm) _xfdashboard_application_tracker_add_name(names, comm);
+		g_free(comm);
+		g_free(path);
+	}
+
+	return(names);
+}
+
+static GAppInfo* _xfdashboard_application_tracker_prefer_favourite(XfdashboardApplicationTracker *self,
+																	XfdashboardWindowTrackerWindow *inWindow,
+																	GAppInfo *inAppInfo)
+{
+	XfdashboardSettings				*settings;
+	XfdashboardApplicationDatabase	*appDB;
+	const gchar						**favourites;
+	GPtrArray						*windowNames;
+	GAppInfo						*result=NULL;
+	gint							i;
+
+	settings=xfdashboard_core_get_settings(NULL);
+	favourites=(settings ? xfdashboard_settings_get_favourites(settings) : NULL);
+	if(!favourites) return(inAppInfo);
+
+	appDB=xfdashboard_core_get_application_database(NULL);
+	windowNames=_xfdashboard_application_tracker_get_window_names(inWindow);
+
+	for(i=0; favourites[i] && !result; i++)
+	{
+		GAppInfo					*favAppInfo;
+		GPtrArray					*favNames;
+
+		if(g_strcmp0(favourites[i], "separator")==0 || g_strcmp0(favourites[i], "launchpad")==0) continue;
+		if(g_path_is_absolute(favourites[i])) favAppInfo=xfdashboard_desktop_app_info_new_from_path(favourites[i]);
+			else favAppInfo=xfdashboard_application_database_lookup_desktop_id(appDB, favourites[i]);
+		if(!favAppInfo) continue;
+
+		/* Already the pinned one: nothing to do */
+		if(inAppInfo && g_app_info_equal(favAppInfo, inAppInfo))
+		{
+			g_object_unref(favAppInfo);
+			break;
+		}
+
+		favNames=_xfdashboard_application_tracker_get_app_names(favAppInfo);
+		if(_xfdashboard_application_tracker_names_match(favNames, windowNames))
+		{
+			result=favAppInfo;
+		}
+			else g_object_unref(favAppInfo);
+		g_ptr_array_unref(favNames);
+	}
+
+	g_ptr_array_unref(windowNames);
+
+	if(!result) return(inAppInfo);
+
+	XFDASHBOARD_DEBUG(self, APPLICATIONS,
+						"Window '%s' attributed to pinned desktop ID '%s' instead of '%s'",
+						xfdashboard_window_tracker_window_get_name(inWindow),
+						g_app_info_get_id(result),
+						inAppInfo ? g_app_info_get_id(inAppInfo) : "<none>");
+	if(inAppInfo) g_object_unref(inAppInfo);
+	return(result);
+}
+
 /* A window was created */
 static void _xfdashboard_application_tracker_on_window_opened(XfdashboardApplicationTracker *self,
 																XfdashboardWindowTrackerWindow *inWindow,
@@ -562,6 +785,15 @@ static void _xfdashboard_application_tracker_on_window_opened(XfdashboardApplica
 
 	priv=self->priv;
 	appInfo=NULL;
+
+	/* Never track our own windows (stage). Skip-tasklist may not be set yet
+	 * when the stage window is mapped, so check identity instead of state.
+	 */
+	if(xfdashboard_window_tracker_window_is_stage(inWindow) ||
+		xfdashboard_window_tracker_window_get_pid(inWindow)==(gint)getpid())
+	{
+		return;
+	}
 
 	/* Get window state */
 	state=xfdashboard_window_tracker_window_get_state(inWindow);
@@ -592,6 +824,7 @@ static void _xfdashboard_application_tracker_on_window_opened(XfdashboardApplica
 	/* Try to find application for window */
 	appInfo=_xfdashboard_application_tracker_get_desktop_id_from_environment(self, inWindow);
 	if(!appInfo) appInfo=xfdashboard_window_tracker_window_get_appinfo(inWindow);
+	appInfo=_xfdashboard_application_tracker_prefer_favourite(self, inWindow, appInfo);
 
 	/* If we could not resolve window to a desktop application info, then stop here */
 	if(!appInfo)

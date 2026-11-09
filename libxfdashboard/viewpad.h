@@ -99,6 +99,8 @@ void xfdashboard_viewpad_set_horizontal_scrollbar_policy(XfdashboardViewpad *sel
 XfdashboardVisibilityPolicy xfdashboard_viewpad_get_vertical_scrollbar_policy(XfdashboardViewpad *self);
 void xfdashboard_viewpad_set_vertical_scrollbar_policy(XfdashboardViewpad *self, XfdashboardVisibilityPolicy inPolicy);
 
+gboolean xfdashboard_viewpad_is_scrolling(void);
+
 G_END_DECLS
 
 #endif	/* __LIBXFDASHBOARD_VIEWPAD__ */

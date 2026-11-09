@@ -40,6 +40,7 @@
 #include <libxfdashboard/stylable.h>
 #include <libxfdashboard/focusable.h>
 #include <libxfdashboard/focus-manager.h>
+#include <libxfdashboard/viewpad.h>
 #include <libxfdashboard/dynamic-table-layout.h>
 #include <libxfdashboard/utils.h>
 #include <libxfdashboard/desktop-app-info.h>
@@ -60,6 +61,7 @@ struct _XfdashboardApplicationsViewPrivate
 	/* Properties related */
 	XfdashboardViewMode					viewMode;
 	gfloat								spacing;
+	gint								columns;
 	gchar								*parentMenuIcon;
 	gchar								*formatTitleOnly;
 	gchar								*formatTitleDescription;
@@ -70,6 +72,7 @@ struct _XfdashboardApplicationsViewPrivate
 	GarconMenuElement					*currentRootMenuElement;
 
 	gpointer							selectedItem;
+	gboolean							selectingByPointer;
 
 	gboolean							showAllAppsMenu;
 	GBinding							*settingsShowAllAppsMenuBinding;
@@ -88,6 +91,7 @@ enum
 
 	PROP_VIEW_MODE,
 	PROP_SPACING,
+	PROP_COLUMNS,
 
 	PROP_PARENT_MENU_ICON,
 	PROP_FORMAT_TITLE_ONLY,
@@ -135,7 +139,8 @@ static void _xfdashboard_applications_view_setup_actor_for_view_mode(Xfdashboard
 			clutter_actor_set_y_expand(inActor, FALSE);
 			if(clutter_actor_get_request_mode(inActor)==CLUTTER_REQUEST_HEIGHT_FOR_WIDTH)
 			{
-				clutter_actor_set_x_align(CLUTTER_ACTOR(inActor), CLUTTER_ACTOR_ALIGN_CENTER);
+				/* Fill whole grid cell so every highlight has the same size */
+				clutter_actor_set_x_align(CLUTTER_ACTOR(inActor), CLUTTER_ACTOR_ALIGN_FILL);
 				clutter_actor_set_y_align(CLUTTER_ACTOR(inActor), CLUTTER_ACTOR_ALIGN_START);
 			}
 				else
@@ -922,8 +927,10 @@ static gboolean _xfdashboard_applications_view_focusable_set_selection(Xfdashboa
 		/* Add weak reference at new selection */
 		g_object_add_weak_pointer(G_OBJECT(priv->selectedItem), &priv->selectedItem);
 
-		/* Ensure new selection is visible */
-		xfdashboard_view_child_ensure_visible(XFDASHBOARD_VIEW(self), priv->selectedItem);
+		/* Ensure new selection is visible (but not when the pointer selected
+		 * it, otherwise scrolling with the pointer over items jumps around)
+		 */
+		if(!priv->selectingByPointer) xfdashboard_view_child_ensure_visible(XFDASHBOARD_VIEW(self), priv->selectedItem);
 	}
 
 	/* New selection was set successfully */
@@ -1421,6 +1428,14 @@ static void _xfdashboard_applications_view_set_property(GObject *inObject,
 			xfdashboard_applications_view_set_spacing(self, g_value_get_float(inValue));
 			break;
 
+		case PROP_COLUMNS:
+			self->priv->columns=g_value_get_int(inValue);
+			if(self->priv->layout && XFDASHBOARD_IS_DYNAMIC_TABLE_LAYOUT(self->priv->layout))
+			{
+				xfdashboard_dynamic_table_layout_set_fixed_columns(XFDASHBOARD_DYNAMIC_TABLE_LAYOUT(self->priv->layout), self->priv->columns);
+			}
+			break;
+
 		case PROP_PARENT_MENU_ICON:
 			xfdashboard_applications_view_set_parent_menu_icon(self, g_value_get_string(inValue));
 			break;
@@ -1462,6 +1477,10 @@ static void _xfdashboard_applications_view_get_property(GObject *inObject,
 
 		case PROP_SPACING:
 			g_value_set_float(outValue, priv->spacing);
+			break;
+
+		case PROP_COLUMNS:
+			g_value_set_int(outValue, priv->columns);
 			break;
 
 		case PROP_PARENT_MENU_ICON:
@@ -1517,6 +1536,14 @@ static void xfdashboard_applications_view_class_init(XfdashboardApplicationsView
 							0.0f,
 							G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+	XfdashboardApplicationsViewProperties[PROP_COLUMNS]=
+		g_param_spec_int("columns",
+							"Columns",
+							"Fixed number of columns in icon mode (0 = as many as fit)",
+							0, G_MAXINT,
+							0,
+							G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
 	XfdashboardApplicationsViewProperties[PROP_PARENT_MENU_ICON]=
 		g_param_spec_string("parent-menu-icon",
 								"Parent menu icon",
@@ -1550,6 +1577,7 @@ static void xfdashboard_applications_view_class_init(XfdashboardApplicationsView
 	/* Define stylable properties */
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardApplicationsViewProperties[PROP_VIEW_MODE]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardApplicationsViewProperties[PROP_SPACING]);
+	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardApplicationsViewProperties[PROP_COLUMNS]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardApplicationsViewProperties[PROP_PARENT_MENU_ICON]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardApplicationsViewProperties[PROP_FORMAT_TITLE_ONLY]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardApplicationsViewProperties[PROP_FORMAT_TITLE_DESCRIPTION]);
@@ -1558,6 +1586,58 @@ static void xfdashboard_applications_view_class_init(XfdashboardApplicationsView
 /* Object initialization
  * Create private structure and set up default values
  */
+/* Let keyboard selection follow the pointer so only one item is highlighted
+ * (otherwise the hovered item and the selected item are highlighted both).
+ */
+static gboolean _xfdashboard_applications_view_on_item_enter(ClutterActor *inActor,
+																ClutterEvent *inEvent,
+																gpointer inUserData)
+{
+	XfdashboardFocusable		*view=XFDASHBOARD_FOCUSABLE(inUserData);
+
+	if(xfdashboard_viewpad_is_scrolling()) return(CLUTTER_EVENT_PROPAGATE);
+
+	/* Selection is only shown while the view has the focus (e.g. not after
+	 * clicking the dock), so move the focus to the viewpad holding this view
+	 */
+	{
+		XfdashboardFocusManager		*focusManager=xfdashboard_core_get_focus_manager(NULL);
+		ClutterActor				*parent;
+
+		for(parent=clutter_actor_get_parent(CLUTTER_ACTOR(view)); parent; parent=clutter_actor_get_parent(parent))
+		{
+			if(XFDASHBOARD_IS_FOCUSABLE(parent) &&
+				xfdashboard_focus_manager_is_registered(focusManager, XFDASHBOARD_FOCUSABLE(parent)))
+			{
+				if(xfdashboard_focus_manager_get_focus(focusManager)!=XFDASHBOARD_FOCUSABLE(parent))
+				{
+					xfdashboard_focus_manager_set_focus(focusManager, XFDASHBOARD_FOCUSABLE(parent));
+				}
+				break;
+			}
+		}
+	}
+
+	if(xfdashboard_focusable_get_selection(view)!=inActor)
+	{
+		XFDASHBOARD_APPLICATIONS_VIEW(view)->priv->selectingByPointer=TRUE;
+		xfdashboard_focusable_set_selection(view, inActor);
+		XFDASHBOARD_APPLICATIONS_VIEW(view)->priv->selectingByPointer=FALSE;
+	}
+	return(CLUTTER_EVENT_PROPAGATE);
+}
+
+static void _xfdashboard_applications_view_on_actor_added(ClutterActor *self,
+															ClutterActor *inChild,
+															gpointer inUserData)
+{
+	if(XFDASHBOARD_IS_BUTTON(inChild))
+	{
+		g_object_set_data(G_OBJECT(inChild), "xfdashboard-no-hover", GINT_TO_POINTER(1));
+		g_signal_connect(inChild, "enter-event", G_CALLBACK(_xfdashboard_applications_view_on_item_enter), self);
+	}
+}
+
 static void xfdashboard_applications_view_init(XfdashboardApplicationsView *self)
 {
 	XfdashboardApplicationsViewPrivate	*priv;
@@ -1571,6 +1651,9 @@ static void xfdashboard_applications_view_init(XfdashboardApplicationsView *self
 	priv->currentRootMenuElement=NULL;
 	priv->viewMode=-1;
 	priv->spacing=0.0f;
+
+	/* Selection follows pointer */
+	g_signal_connect(self, "actor-added", G_CALLBACK(_xfdashboard_applications_view_on_actor_added), NULL);
 	priv->parentMenuIcon=NULL;
 	priv->formatTitleOnly=g_strdup("%s");
 	priv->formatTitleDescription=g_strdup("%s\n%s");
@@ -1648,6 +1731,7 @@ void xfdashboard_applications_view_set_view_mode(XfdashboardApplicationsView *se
 			case XFDASHBOARD_VIEW_MODE_ICON:
 				priv->layout=xfdashboard_dynamic_table_layout_new();
 				xfdashboard_dynamic_table_layout_set_spacing(XFDASHBOARD_DYNAMIC_TABLE_LAYOUT(priv->layout), priv->spacing);
+				if(priv->columns>0) xfdashboard_dynamic_table_layout_set_fixed_columns(XFDASHBOARD_DYNAMIC_TABLE_LAYOUT(priv->layout), priv->columns);
 				clutter_actor_set_layout_manager(CLUTTER_ACTOR(self), priv->layout);
 				break;
 

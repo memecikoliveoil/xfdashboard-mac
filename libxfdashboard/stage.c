@@ -297,8 +297,18 @@ static void _xfdashboard_stage_set_focus(XfdashboardStage *self)
 	{
 		XfdashboardFocusable	*focusable;
 
-		/* First try to set focus to searchbox ... */
-		if(XFDASHBOARD_IS_FOCUSABLE(priv->searchbox) &&
+		/* First try to set focus to viewpad (keyboard navigation of windows
+		 * and applications; typing still reaches the search box) ...
+		 */
+		if(priv->viewpad &&
+			XFDASHBOARD_IS_FOCUSABLE(priv->viewpad) &&
+			xfdashboard_focus_manager_is_registered(priv->focusManager, XFDASHBOARD_FOCUSABLE(priv->viewpad)) &&
+			xfdashboard_focusable_can_focus(XFDASHBOARD_FOCUSABLE(priv->viewpad)))
+		{
+			xfdashboard_focus_manager_set_focus(priv->focusManager, XFDASHBOARD_FOCUSABLE(priv->viewpad));
+		}
+		/* ... then searchbox ... */
+		else if(XFDASHBOARD_IS_FOCUSABLE(priv->searchbox) &&
 			xfdashboard_focusable_can_focus(XFDASHBOARD_FOCUSABLE(priv->searchbox)))
 		{
 			xfdashboard_focus_manager_set_focus(priv->focusManager, XFDASHBOARD_FOCUSABLE(priv->searchbox));
@@ -350,6 +360,30 @@ static void _xfdashboard_stage_show_tooltip(XfdashboardStage *self, ClutterActio
 	y=tooltipY+cursorSize;
 	if((x+tooltipWidth)>stageWidth) x=tooltipX-tooltipWidth;
 	if((y+tooltipHeight)>stageHeight) y=tooltipY-tooltipHeight;
+
+	/* Dock items: like Plank/macOS the name is shown centered above the icon,
+	 * a bit above the dock (not next to the mouse pointer)
+	 */
+	{
+		ClutterActor			*item, *dock;
+
+		item=clutter_actor_meta_get_actor(CLUTTER_ACTOR_META(tooltipAction));
+		for(dock=(item ? clutter_actor_get_parent(item) : NULL); dock && !XFDASHBOARD_IS_QUICKLAUNCH(dock); dock=clutter_actor_get_parent(dock));
+		if(dock &&
+			xfdashboard_quicklaunch_get_orientation(XFDASHBOARD_QUICKLAUNCH(dock))==CLUTTER_ORIENTATION_HORIZONTAL)
+		{
+			gfloat				itemX, itemY, itemW, itemH, dockX, dockY;
+
+			clutter_actor_get_transformed_position(item, &itemX, &itemY);
+			clutter_actor_get_transformed_size(item, &itemW, &itemH);
+			clutter_actor_get_transformed_position(dock, &dockX, &dockY);
+
+			x=itemX+((itemW-tooltipWidth)/2.0f);
+			y=MIN(dockY, itemY)-tooltipHeight-10.0f;
+			x=CLAMP(x, 4.0f, MAX(4.0f, stageWidth-tooltipWidth-4.0f));
+			y=MAX(0.0f, y);
+		}
+	}
 
 	clutter_actor_set_position(priv->tooltip, floor(x), floor(y));
 
@@ -422,6 +456,14 @@ static void _xfdashboard_stage_on_quicklaunch_apps_button_toggled(XfdashboardSta
 	/* Depending on state activate views */
 	if(state==FALSE)
 	{
+		/* Going back to windows: end a running search (clears search box) */
+		if(priv->searchActive &&
+			priv->searchbox &&
+			!xfdashboard_text_box_is_empty(XFDASHBOARD_TEXT_BOX(priv->searchbox)))
+		{
+			xfdashboard_text_box_set_text(XFDASHBOARD_TEXT_BOX(priv->searchbox), NULL);
+		}
+
 		/* Find "windows-view" view and activate */
 		view=xfdashboard_viewpad_find_view_by_type(XFDASHBOARD_VIEWPAD(priv->viewpad), XFDASHBOARD_TYPE_WINDOWS_VIEW);
 		if(view) xfdashboard_viewpad_set_active_view(XFDASHBOARD_VIEWPAD(priv->viewpad), view);
@@ -556,6 +598,40 @@ static void _xfdashboard_stage_on_searchbox_secondary_icon_clicked(XfdashboardSt
 	xfdashboard_text_box_set_text(textBox, NULL);
 }
 
+/* Background images (see _xfdashboard_stage_set_background_from_file) */
+static ClutterContent		*_xfdashboard_stage_background_normal=NULL;
+static ClutterContent		*_xfdashboard_stage_background_launchpad=NULL;
+
+/* Show theme's "no windows" message when windows view is active and empty */
+static void _xfdashboard_stage_update_empty_windows(XfdashboardStage *self)
+{
+	XfdashboardStagePrivate		*priv=self->priv;
+	ClutterActor				*emptyMessage;
+	ClutterActor				*windowsView;
+	gboolean					show;
+
+	emptyMessage=g_object_get_data(G_OBJECT(self), "xfdashboard-empty-windows");
+	windowsView=g_object_get_data(G_OBJECT(self), "xfdashboard-windows-view");
+	if(!emptyMessage || !windowsView || !priv->viewpad) return;
+
+	/* Count only visible live windows (destroyed ones may still fade out) */
+	{
+		ClutterActor			*child;
+		ClutterActorIter		iter;
+		gint					visible=0;
+
+		clutter_actor_iter_init(&iter, windowsView);
+		while(clutter_actor_iter_next(&iter, &child))
+		{
+			if(clutter_actor_is_visible(child)) visible++;
+		}
+		show=(visible==0 &&
+			XFDASHBOARD_VIEW(windowsView)==xfdashboard_viewpad_get_active_view(XFDASHBOARD_VIEWPAD(priv->viewpad)));
+	}
+	if(show) clutter_actor_show(emptyMessage);
+		else clutter_actor_hide(emptyMessage);
+}
+
 /* Active view in viewpad has changed */
 static void _xfdashboard_stage_on_view_activated(XfdashboardStage *self, XfdashboardView *inView, gpointer inUserData)
 {
@@ -582,6 +658,25 @@ static void _xfdashboard_stage_on_view_activated(XfdashboardStage *self, Xfdashb
 
 		/* Remember new active view */
 		priv->viewBeforeSearch=XFDASHBOARD_VIEW(g_object_ref(inView));
+	}
+
+	/* Applications and search view get the blurred "launchpad" background */
+	if(priv->backgroundImageLayer &&
+		_xfdashboard_stage_background_normal &&
+		_xfdashboard_stage_background_launchpad &&
+		clutter_actor_get_content(priv->backgroundImageLayer)!=NULL &&
+		(clutter_actor_get_content(priv->backgroundImageLayer)==_xfdashboard_stage_background_normal ||
+			clutter_actor_get_content(priv->backgroundImageLayer)==_xfdashboard_stage_background_launchpad))
+	{
+		if(G_OBJECT_TYPE(inView)==XFDASHBOARD_TYPE_SEARCH_VIEW ||
+			G_OBJECT_TYPE(inView)==XFDASHBOARD_TYPE_APPLICATIONS_VIEW)
+		{
+			clutter_actor_set_content(priv->backgroundImageLayer, _xfdashboard_stage_background_launchpad);
+		}
+			else
+			{
+				clutter_actor_set_content(priv->backgroundImageLayer, _xfdashboard_stage_background_normal);
+			}
 	}
 
 	/* Toggle application button in quicklaunch */
@@ -684,6 +779,76 @@ static void _xfdashboard_stage_on_window_opened(XfdashboardStage *self,
 
 	/* Set focus */
 	_xfdashboard_stage_set_focus(self);
+}
+
+/* Use $XDG_CONFIG_HOME/xfdashboard/background.png (if it exists) as the
+ * stage background instead of the desktop window. The desktop window
+ * includes desktop icons, a plain image does not.
+ * Returns TRUE if the image was loaded and set.
+ */
+/* Background images from $XDG_CONFIG_HOME/xfdashboard (loaded once):
+ * background.png for the windows view and launchpad-background.png (blurred,
+ * dimmed wallpaper) for applications and search view, like macOS Launchpad.
+ */
+
+static ClutterContent* _xfdashboard_stage_load_image(const gchar *inName)
+{
+	gchar						*path;
+	GdkPixbuf					*pixbuf;
+	ClutterContent				*image=NULL;
+	GError						*error=NULL;
+
+	path=g_build_filename(g_get_user_config_dir(), "xfdashboard", inName, NULL);
+	if(!g_file_test(path, G_FILE_TEST_EXISTS))
+	{
+		g_free(path);
+		return(NULL);
+	}
+
+	pixbuf=gdk_pixbuf_new_from_file(path, &error);
+	if(pixbuf)
+	{
+		image=clutter_image_new();
+		if(!clutter_image_set_data(CLUTTER_IMAGE(image),
+									gdk_pixbuf_get_pixels(pixbuf),
+									gdk_pixbuf_get_has_alpha(pixbuf) ? COGL_PIXEL_FORMAT_RGBA_8888 : COGL_PIXEL_FORMAT_RGB_888,
+									gdk_pixbuf_get_width(pixbuf),
+									gdk_pixbuf_get_height(pixbuf),
+									gdk_pixbuf_get_rowstride(pixbuf),
+									&error))
+		{
+			g_object_unref(image);
+			image=NULL;
+		}
+		g_object_unref(pixbuf);
+	}
+
+	if(error)
+	{
+		g_warning("Could not load background image '%s': %s", path, error->message);
+		g_error_free(error);
+	}
+
+	g_free(path);
+	return(image);
+}
+
+static gboolean _xfdashboard_stage_set_background_from_file(XfdashboardStage *self)
+{
+	XfdashboardStagePrivate		*priv=self->priv;
+
+	if(!priv->backgroundImageLayer) return(FALSE);
+
+	if(!_xfdashboard_stage_background_normal)
+	{
+		_xfdashboard_stage_background_normal=_xfdashboard_stage_load_image("background.png");
+		_xfdashboard_stage_background_launchpad=_xfdashboard_stage_load_image("launchpad-background.png");
+	}
+	if(!_xfdashboard_stage_background_normal) return(FALSE);
+
+	clutter_actor_set_content(priv->backgroundImageLayer, _xfdashboard_stage_background_normal);
+	clutter_actor_show(priv->backgroundImageLayer);
+	return(TRUE);
 }
 
 /* A window was created
@@ -1137,6 +1302,26 @@ static void _xfdashboard_stage_on_application_theme_changed(XfdashboardStage *se
 
 				/* Connect signals */
 				g_signal_connect_swapped(priv->viewpad, "view-activated", G_CALLBACK(_xfdashboard_stage_on_view_activated), self);
+
+				/* Optional "no windows" message of theme (actor named "empty-windows") */
+				{
+					ClutterActor		*emptyMessage;
+					ClutterActor		*windowsView;
+
+					emptyMessage=xfdashboard_find_actor_by_name(CLUTTER_ACTOR(self), "empty-windows");
+					windowsView=CLUTTER_ACTOR(xfdashboard_viewpad_find_view_by_type(XFDASHBOARD_VIEWPAD(priv->viewpad), XFDASHBOARD_TYPE_WINDOWS_VIEW));
+					if(emptyMessage && windowsView)
+					{
+						g_object_set_data(G_OBJECT(self), "xfdashboard-empty-windows", emptyMessage);
+						g_object_set_data(G_OBJECT(self), "xfdashboard-windows-view", windowsView);
+						clutter_actor_set_reactive(emptyMessage, FALSE);
+						clutter_actor_hide(emptyMessage);
+						g_signal_connect_swapped(windowsView, "actor-added", G_CALLBACK(_xfdashboard_stage_update_empty_windows), self);
+						g_signal_connect_swapped(windowsView, "actor-removed", G_CALLBACK(_xfdashboard_stage_update_empty_windows), self);
+						g_signal_connect_swapped(priv->viewpad, "view-activated", G_CALLBACK(_xfdashboard_stage_update_empty_windows), self);
+						_xfdashboard_stage_update_empty_windows(self);
+					}
+				}
 
 				/* Register this focusable actor if it is focusable */
 				if(!interface->focusables && XFDASHBOARD_IS_FOCUSABLE(priv->viewpad))
@@ -2042,6 +2227,8 @@ void xfdashboard_stage_set_background_image_type(XfdashboardStage *self, Xfdashb
 				case XFDASHBOARD_STAGE_BACKGROUND_IMAGE_TYPE_DESKTOP:
 					{
 						XfdashboardWindowTrackerWindow	*backgroundWindow;
+
+						if(_xfdashboard_stage_set_background_from_file(self)) break;
 
 						backgroundWindow=xfdashboard_window_tracker_get_root_window(priv->windowTracker);
 						if(backgroundWindow)

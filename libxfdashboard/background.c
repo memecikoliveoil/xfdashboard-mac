@@ -51,6 +51,7 @@ struct _XfdashboardBackgroundPrivate
 	XfdashboardBorders			outlineBorders;
 	XfdashboardCorners			outlineCorners;
 	gfloat						outlineCornersRadius;
+	gfloat						outlineOutset;
 
 	/* Instance related */
 	ClutterContent				*fillCanvas;
@@ -81,6 +82,7 @@ enum
 	PROP_OUTLINE_BORDERS,
 	PROP_OUTLINE_CORNERS,
 	PROP_OUTLINE_CORNERS_RADIUS,
+	PROP_OUTLINE_OUTSET,
 
 	PROP_IMAGE,
 
@@ -599,6 +601,11 @@ static void _xfdashboard_background_set_property(GObject *inObject,
 			xfdashboard_background_set_outline_width(self, g_value_get_float(inValue));
 			break;
 
+		case PROP_OUTLINE_OUTSET:
+			self->priv->outlineOutset=g_value_get_float(inValue);
+			if(self->priv->outline) xfdashboard_outline_effect_set_outset(self->priv->outline, self->priv->outlineOutset);
+			break;
+
 		case PROP_OUTLINE_BORDERS:
 			xfdashboard_background_set_outline_borders(self, g_value_get_flags(inValue));
 			break;
@@ -653,6 +660,10 @@ static void _xfdashboard_background_get_property(GObject *inObject,
 
 		case PROP_OUTLINE_WIDTH:
 			g_value_set_float(outValue, priv->outlineWidth);
+			break;
+
+		case PROP_OUTLINE_OUTSET:
+			g_value_set_float(outValue, priv->outlineOutset);
 			break;
 
 		case PROP_OUTLINE_BORDERS:
@@ -763,6 +774,14 @@ static void xfdashboard_background_class_init(XfdashboardBackgroundClass *klass)
 												defaultOutlineColor,
 												G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+	XfdashboardBackgroundProperties[PROP_OUTLINE_OUTSET]=
+		g_param_spec_float("outline-outset",
+							"Outline outset",
+							"Draw outline this many pixels outside of the actor (0 = inside)",
+							0.0f, G_MAXFLOAT,
+							0.0f,
+							G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
 	XfdashboardBackgroundProperties[PROP_OUTLINE_WIDTH]=
 		g_param_spec_float("outline-width",
 							"Outline width",
@@ -813,6 +832,7 @@ static void xfdashboard_background_class_init(XfdashboardBackgroundClass *klass)
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardBackgroundProperties[PROP_FILL_CORNERS_RADIUS]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardBackgroundProperties[PROP_OUTLINE_COLOR]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardBackgroundProperties[PROP_OUTLINE_WIDTH]);
+	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardBackgroundProperties[PROP_OUTLINE_OUTSET]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardBackgroundProperties[PROP_OUTLINE_BORDERS]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardBackgroundProperties[PROP_OUTLINE_CORNERS]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardBackgroundProperties[PROP_OUTLINE_CORNERS_RADIUS]);
@@ -842,6 +862,7 @@ static void xfdashboard_background_init(XfdashboardBackground *self)
 	priv->outline=XFDASHBOARD_OUTLINE_EFFECT(g_object_ref(xfdashboard_outline_effect_new()));
 	priv->outlineColor=xfdashboard_gradient_color_new_solid(CLUTTER_COLOR_White);
 	priv->outlineWidth=1.0f;
+	priv->outlineOutset=0.0f;
 	priv->outlineCorners=XFDASHBOARD_CORNERS_ALL;
 	priv->outlineBorders=XFDASHBOARD_BORDERS_ALL;
 	priv->outlineCornersRadius=0.0f;

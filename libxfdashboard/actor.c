@@ -939,15 +939,24 @@ static void _xfdashboard_actor_remove_animation(XfdashboardActor *self,
 
 	priv=self->priv;
 
+	GSList							*stopList;
+
 	/* Iterate through list of animation and lookup animation for signal. If an
 	 * animation is found, stop it. It will be remove from list of animations
 	 * automatically.
+	 *
+	 * Stopping an animation calls the done callback which removes and frees
+	 * its entry from the list we are iterating, so first only collect the
+	 * animations to stop and stop them after the iteration. Otherwise the
+	 * iterator points to freed memory, e.g. when the pointer moves quickly
+	 * over actors with hover animations.
 	 */
+	stopList=NULL;
 	for(iter=priv->animations; iter; iter=g_slist_next(iter))
 	{
 		/* Get animation entry at iterator */
 		data=(XfdashboardActorAnimationEntry*)iter->data;
-		if(!data) continue;
+		if(!data || !data->animation) continue;
 
 		/* Check if animation entry matches the signal to lookup */
 		if(g_strcmp0(data->signal, inAnimationSignal)==0)
@@ -957,12 +966,18 @@ static void _xfdashboard_actor_remove_animation(XfdashboardActor *self,
 									xfdashboard_animation_get_id(data->animation),
 									inAnimationSignal);
 
-			/* Stop animation by unreffing object instance which calls the
-			 * done callback _xfdashboard_actor_animation_done() of animation.
-			 */
-			g_object_unref(data->animation);
+			stopList=g_slist_prepend(stopList, data->animation);
 		}
 	}
+
+	/* Stop animations by unreffing object instance which calls the
+	 * done callback _xfdashboard_actor_animation_done() of animation.
+	 */
+	for(iter=stopList; iter; iter=g_slist_next(iter))
+	{
+		g_object_unref(iter->data);
+	}
+	g_slist_free(stopList);
 }
 
 /* Lookup animations for signal and (pseudo-)class and run animation at actor */
@@ -1264,8 +1279,22 @@ static gboolean _xfdashboard_actor_leave_event(ClutterActor *inActor, ClutterCro
 		parentClass->leave_event(inActor, inEvent);
 	}
 
-	/* Remove pseudo-class ":hover" because pointer left actor */
-	xfdashboard_stylable_remove_pseudo_class(XFDASHBOARD_STYLABLE(self), "hover");
+	/* Remove pseudo-class ":hover" because pointer left actor. Crossing
+	 * events bubble up to all parents, so when the pointer only moved from
+	 * one child to another one the pointer is still inside this actor and
+	 * it keeps its hover state. Otherwise every crossing between items of
+	 * a long list would restyle the whole list (and the stage) twice.
+	 */
+	if(inEvent->related &&
+		(inEvent->related==inActor || clutter_actor_contains(inActor, inEvent->related)))
+	{
+		return(CLUTTER_EVENT_PROPAGATE);
+	}
+
+	if(!g_object_get_data(G_OBJECT(self), "xfdashboard-no-hover"))
+	{
+		xfdashboard_stylable_remove_pseudo_class(XFDASHBOARD_STYLABLE(self), "hover");
+	}
 
 	return(CLUTTER_EVENT_PROPAGATE);
 }
@@ -1287,8 +1316,14 @@ static gboolean _xfdashboard_actor_enter_event(ClutterActor *inActor, ClutterCro
 		parentClass->enter_event(inActor, inEvent);
 	}
 
-	/* Add pseudo-class ":hover" because pointer entered actor */
-	xfdashboard_stylable_add_pseudo_class(XFDASHBOARD_STYLABLE(self), "hover");
+	/* Add pseudo-class ":hover" because pointer entered actor (unless the
+	 * actor shows pointer position by selection instead: restyling on every
+	 * crossing is expensive in long lists)
+	 */
+	if(!g_object_get_data(G_OBJECT(self), "xfdashboard-no-hover"))
+	{
+		xfdashboard_stylable_add_pseudo_class(XFDASHBOARD_STYLABLE(self), "hover");
+	}
 
 	return(CLUTTER_EVENT_PROPAGATE);
 }

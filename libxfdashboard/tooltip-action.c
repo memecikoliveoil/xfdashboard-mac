@@ -262,6 +262,20 @@ static gboolean _xfdashboard_tooltip_action_on_motion_event(XfdashboardTooltipAc
 	 */
 	tooltipTimeout=DEFAULT_TOOLTIP_TIMEOUT;
 
+	/* Dock items show their name almost at once (like Plank/macOS) */
+	{
+		ClutterActor			*parent;
+
+		for(parent=clutter_actor_get_parent(actor); parent; parent=clutter_actor_get_parent(parent))
+		{
+			if(g_type_is_a(G_OBJECT_TYPE(parent), g_type_from_name("XfdashboardQuicklaunch")))
+			{
+				tooltipTimeout=120;
+				break;
+			}
+		}
+	}
+
 	priv->timeoutSourceID=clutter_threads_add_timeout(tooltipTimeout,
 														(GSourceFunc)_xfdashboard_tooltip_action_on_timeout,
 														self);

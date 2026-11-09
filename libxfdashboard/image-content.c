@@ -277,7 +277,7 @@ static void _xfdashboard_image_content_store_in_cache(XfdashboardImageContent *s
 /* Set an empty image of size 1x1 pixels (e.g. when loading asynchronously) */
 static void _xfdashboard_image_content_set_empty_image(XfdashboardImageContent *self)
 {
-	static guchar		empty[]={ 0, 0, 0, 0xff };
+	static guchar		empty[]={ 0, 0, 0, 0 };	/* fully transparent, not black */
 
 	g_return_if_fail(XFDASHBOARD_IS_IMAGE_CONTENT(self));
 
@@ -286,7 +286,7 @@ static void _xfdashboard_image_content_set_empty_image(XfdashboardImageContent *
 							COGL_PIXEL_FORMAT_RGBA_8888,
 							1, /* width */
 							1, /* height */
-							1, /* row-stride */
+							4, /* row-stride */
 							NULL);
 }
 

@@ -882,8 +882,9 @@ static void _xfdashboard_live_window_allocate(ClutterActor *self,
 
 		left=clutter_actor_box_get_x(&boxActorLayer)+((clutter_actor_box_get_width(&boxActorLayer)-titleWidth)/2.0f);
 		right=left+titleWidth;
-		bottom=clutter_actor_box_get_y(&boxActorLayer)+clutter_actor_box_get_height(&boxActorLayer)-(2*priv->paddingTitle);
-		top=bottom-titleHeight;
+		/* Center the title vertically in the window (like macOS Mission Control) */
+		top=clutter_actor_box_get_y(&boxActorLayer)+((clutter_actor_box_get_height(&boxActorLayer)-titleHeight)/2.0f);
+		bottom=top+titleHeight;
 		if(left>right) left=right-1.0f;
 		if(top<(clutter_actor_box_get_y(referedBoxActor)+clutter_actor_box_get_height(referedBoxActor)))
 		{

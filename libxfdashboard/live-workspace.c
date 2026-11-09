@@ -28,6 +28,8 @@
 
 #include <libxfdashboard/live-workspace.h>
 
+#include <gdk-pixbuf/gdk-pixbuf.h>
+
 #include <glib/gi18n-lib.h>
 #include <math.h>
 
@@ -52,10 +54,12 @@ struct _XfdashboardLiveWorkspacePrivate
 	XfdashboardStageBackgroundImageType		backgroundType;
 	gboolean								showWorkspaceName;
 	gfloat									workspaceNamePadding;
+	gboolean								workspaceNameBelow;
 
 	/* Instance related */
 	XfdashboardWindowTracker				*windowTracker;
 	ClutterActor							*backgroundImageLayer;
+	ClutterActor							*wallpaperLayer;
 	ClutterActor							*actorTitle;
 	ClutterAction							*clickAction;
 };
@@ -74,6 +78,7 @@ enum
 	PROP_BACKGROUND_IMAGE_TYPE,
 	PROP_SHOW_WORKSPACE_NAME,
 	PROP_WORKSPACE_NAME_PADDING,
+	PROP_WORKSPACE_NAME_BELOW,
 
 	PROP_LAST
 };
@@ -92,6 +97,63 @@ static guint XfdashboardLiveWorkspaceSignals[SIGNAL_LAST]={ 0, };
 
 /* IMPLEMENTATION: Private variables and methods */
 #define DEFAULT_DRAG_HANDLE_SIZE						32.0f
+
+/* Wallpaper image shared by all live workspaces instead of the desktop window
+ * (which would show desktop icons). Looked up once in
+ * $XDG_CONFIG_HOME/xfdashboard/workspace-background.png, then background.png.
+ */
+static ClutterContent* _xfdashboard_live_workspace_get_wallpaper(void)
+{
+	static ClutterContent		*wallpaper=NULL;
+	static gboolean				tried=FALSE;
+	const gchar					*names[]={ "workspace-background.png", "background.png", NULL };
+	gint						i;
+
+	if(tried) return(wallpaper);
+	tried=TRUE;
+
+	for(i=0; names[i] && !wallpaper; i++)
+	{
+		gchar					*path;
+		GdkPixbuf				*pixbuf;
+
+		path=g_build_filename(g_get_user_config_dir(), "xfdashboard", names[i], NULL);
+		pixbuf=g_file_test(path, G_FILE_TEST_EXISTS) ? gdk_pixbuf_new_from_file(path, NULL) : NULL;
+		if(pixbuf)
+		{
+			ClutterContent		*image=clutter_image_new();
+
+			if(clutter_image_set_data(CLUTTER_IMAGE(image),
+										gdk_pixbuf_get_pixels(pixbuf),
+										gdk_pixbuf_get_has_alpha(pixbuf) ? COGL_PIXEL_FORMAT_RGBA_8888 : COGL_PIXEL_FORMAT_RGB_888,
+										gdk_pixbuf_get_width(pixbuf),
+										gdk_pixbuf_get_height(pixbuf),
+										gdk_pixbuf_get_rowstride(pixbuf),
+										NULL))
+			{
+				wallpaper=image;
+			}
+				else g_object_unref(image);
+
+			g_object_unref(pixbuf);
+		}
+		g_free(path);
+	}
+
+	return(wallpaper);
+}
+
+/* Height of the strip below the workspace preview reserved for its name */
+static gfloat _xfdashboard_live_workspace_get_name_strip_height(XfdashboardLiveWorkspace *self)
+{
+	XfdashboardLiveWorkspacePrivate		*priv=self->priv;
+	gfloat								titleHeight=0.0f;
+
+	if(!priv->workspaceNameBelow || !priv->showWorkspaceName || !priv->actorTitle) return(0.0f);
+
+	clutter_actor_get_preferred_height(priv->actorTitle, -1.0f, NULL, &titleHeight);
+	return(titleHeight+priv->workspaceNamePadding);
+}
 
 /* Check if window should be shown */
 static gboolean _xfdashboard_live_workspace_is_visible_window(XfdashboardLiveWorkspace *self,
@@ -123,6 +185,12 @@ static gboolean _xfdashboard_live_workspace_is_visible_window(XfdashboardLiveWor
 		XFDASHBOARD_DEBUG(self, ACTOR,
 							"Window '%s' is invisible due to 'skip-tasklist' window state",
 							xfdashboard_window_tracker_window_get_name(inWindow));
+		visible=FALSE;
+	}
+
+	if(visible && (state & XFDASHBOARD_WINDOW_TRACKER_WINDOW_STATE_MINIMIZED))
+	{
+		/* Minimized windows are not part of a workspace thumbnail (macOS) */
 		visible=FALSE;
 	}
 
@@ -632,6 +700,8 @@ static void _xfdashboard_live_workspace_get_preferred_height(ClutterActor *self,
 
 		if(inForWidth<0.0f) naturalHeight=childHeight;
 			else naturalHeight=(childHeight/childWidth)*inForWidth;
+
+		naturalHeight+=_xfdashboard_live_workspace_get_name_strip_height(XFDASHBOARD_LIVE_WORKSPACE(self));
 	}
 
 	/* Store sizes computed */
@@ -668,7 +738,7 @@ static void _xfdashboard_live_workspace_get_preferred_width(ClutterActor *self,
 			}
 
 		if(inForHeight<0.0f) naturalWidth=childWidth;
-			else naturalWidth=(childWidth/childHeight)*inForHeight;
+			else naturalWidth=(childWidth/childHeight)*MAX(0.0f, inForHeight-_xfdashboard_live_workspace_get_name_strip_height(XFDASHBOARD_LIVE_WORKSPACE(self)));
 	}
 
 	/* Store sizes computed */
@@ -723,9 +793,19 @@ static void _xfdashboard_live_workspace_allocate(ClutterActor *self,
 	ClutterActorBox						childAllocation={ 0, };
 	ClutterActorBox						visibleArea={ 0, };
 	ClutterActorBox						workspaceArea={ 0, };
+	ClutterActorBox						contentBox;
+	gfloat								stripHeight;
 
 	/* Chain up to store the allocation of the actor */
 	CLUTTER_ACTOR_CLASS(xfdashboard_live_workspace_parent_class)->allocate(self, inBox, inFlags);
+
+	/* Area for the workspace preview itself (without name strip below it) */
+	stripHeight=_xfdashboard_live_workspace_get_name_strip_height(XFDASHBOARD_LIVE_WORKSPACE(self));
+	contentBox=*inBox;
+	contentBox.y2=MAX(contentBox.y1, contentBox.y2-stripHeight);
+
+	/* Let outline (e.g. of active workspace) surround the preview only */
+	g_object_set_data(G_OBJECT(self), "xfdashboard-outline-bottom-inset", GINT_TO_POINTER((gint)stripHeight));
 
 	/* Get size of workspace as it is needed to calculate translated position
 	 * and size but fallback to size of screen if no workspace is set.
@@ -769,8 +849,14 @@ static void _xfdashboard_live_workspace_allocate(ClutterActor *self,
 	childAllocation.y1=-visibleArea.y1;
 	childAllocation.x2=childAllocation.x1+clutter_actor_box_get_width(&workspaceArea);
 	childAllocation.y2=childAllocation.y1+clutter_actor_box_get_height(&workspaceArea);
-	_xfdashboard_live_workspace_transform_allocation(&childAllocation, &workspaceArea, &visibleArea, inBox);
+	_xfdashboard_live_workspace_transform_allocation(&childAllocation, &workspaceArea, &visibleArea, &contentBox);
 	clutter_actor_allocate(priv->backgroundImageLayer, &childAllocation, inFlags);
+	if(priv->wallpaperLayer)
+	{
+		ClutterActorBox					wallpaperAllocation={ 0.0f, 0.0f, clutter_actor_box_get_width(&contentBox), clutter_actor_box_get_height(&contentBox) };
+
+		clutter_actor_allocate(priv->wallpaperLayer, &wallpaperAllocation, inFlags);
+	}
 
 	/* Set allocation of title actor */
 	if(priv->actorTitle)
@@ -788,8 +874,16 @@ static void _xfdashboard_live_workspace_allocate(ClutterActor *self,
 
 		left=(clutter_actor_box_get_width(inBox)-titleWidth)/2.0f;
 		right=left+titleWidth;
-		bottom=clutter_actor_box_get_height(inBox)-priv->workspaceNamePadding;
-		top=bottom-titleHeight;
+		if(stripHeight>0.0f)
+		{
+			top=clutter_actor_box_get_height(&contentBox)+priv->workspaceNamePadding;
+			bottom=top+titleHeight;
+		}
+			else
+			{
+				bottom=clutter_actor_box_get_height(inBox)-priv->workspaceNamePadding;
+				top=bottom-titleHeight;
+			}
 		if(left>right) left=right-1.0f;
 
 		right=MAX(left, right);
@@ -826,20 +920,43 @@ static void _xfdashboard_live_workspace_allocate(ClutterActor *self,
 		childAllocation.x2=childAllocation.x1+w;
 		childAllocation.y1=y-visibleArea.y1;
 		childAllocation.y2=childAllocation.y1+h;
-		_xfdashboard_live_workspace_transform_allocation(&childAllocation, &workspaceArea, &visibleArea, inBox);
+		_xfdashboard_live_workspace_transform_allocation(&childAllocation, &workspaceArea, &visibleArea, &contentBox);
 
 		/* Set allocation of child */
 		clutter_actor_allocate(child, &childAllocation, inFlags);
+
+		/* Windows partly outside of the screen must not be drawn outside of
+		 * the workspace preview: clip each window to the preview area
+		 */
+		{
+			gfloat						cw=clutter_actor_box_get_width(&contentBox);
+			gfloat						ch=clutter_actor_box_get_height(&contentBox);
+			gfloat						left, top, right, bottom;
+
+			left=MAX(0.0f, -childAllocation.x1);
+			top=MAX(0.0f, -childAllocation.y1);
+			right=MIN(childAllocation.x2, cw)-childAllocation.x1;
+			bottom=MIN(childAllocation.y2, ch)-childAllocation.y1;
+
+			if(left>0.0f || top>0.0f ||
+				right<clutter_actor_box_get_width(&childAllocation) ||
+				bottom<clutter_actor_box_get_height(&childAllocation))
+			{
+				clutter_actor_set_clip(child, left, top, MAX(0.0f, right-left), MAX(0.0f, bottom-top));
+			}
+				else clutter_actor_remove_clip(child);
+		}
 	}
 
 	/* Set clip if a specific monitor should be shown only otherwise remove clip */
 	if(priv->monitor)
 	{
+		/* Leave some room around for an outline drawn outside (outline-outset) */
 		clutter_actor_set_clip(self,
-								0.0f,
-								0.0f,
-								clutter_actor_box_get_width(inBox),
-								clutter_actor_box_get_height(inBox));
+								-8.0f,
+								-8.0f,
+								clutter_actor_box_get_width(inBox)+16.0f,
+								clutter_actor_box_get_height(inBox)+16.0f);
 	}
 		else
 		{
@@ -860,6 +977,12 @@ static void _xfdashboard_live_workspace_dispose(GObject *inObject)
 	{
 		clutter_actor_destroy(priv->actorTitle);
 		priv->actorTitle=NULL;
+	}
+
+	if(priv->wallpaperLayer)
+	{
+		clutter_actor_destroy(priv->wallpaperLayer);
+		priv->wallpaperLayer=NULL;
 	}
 
 	if(priv->backgroundImageLayer)
@@ -927,6 +1050,15 @@ static void _xfdashboard_live_workspace_set_property(GObject *inObject,
 			xfdashboard_live_workspace_set_workspace_name_padding(self, g_value_get_float(inValue));
 			break;
 
+		case PROP_WORKSPACE_NAME_BELOW:
+			if(self->priv->workspaceNameBelow!=g_value_get_boolean(inValue))
+			{
+				self->priv->workspaceNameBelow=g_value_get_boolean(inValue);
+				clutter_actor_queue_relayout(CLUTTER_ACTOR(self));
+				g_object_notify_by_pspec(G_OBJECT(self), XfdashboardLiveWorkspaceProperties[PROP_WORKSPACE_NAME_BELOW]);
+			}
+			break;
+
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID(inObject, inPropID, inSpec);
 			break;
@@ -960,6 +1092,10 @@ static void _xfdashboard_live_workspace_get_property(GObject *inObject,
 
 		case PROP_WORKSPACE_NAME_PADDING:
 			g_value_set_float(outValue, self->priv->workspaceNamePadding);
+			break;
+
+		case PROP_WORKSPACE_NAME_BELOW:
+			g_value_set_boolean(outValue, self->priv->workspaceNameBelow);
 			break;
 
 		default:
@@ -1025,12 +1161,20 @@ static void xfdashboard_live_workspace_class_init(XfdashboardLiveWorkspaceClass 
 							0.0f,
 							G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+	XfdashboardLiveWorkspaceProperties[PROP_WORKSPACE_NAME_BELOW]=
+		g_param_spec_boolean("workspace-name-below",
+								"Workspace name below",
+								"If TRUE the name is shown below the workspace preview instead of inside it",
+								FALSE,
+								G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
 	g_object_class_install_properties(gobjectClass, PROP_LAST, XfdashboardLiveWorkspaceProperties);
 
 	/* Define stylable properties */
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardLiveWorkspaceProperties[PROP_BACKGROUND_IMAGE_TYPE]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardLiveWorkspaceProperties[PROP_SHOW_WORKSPACE_NAME]);
 	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardLiveWorkspaceProperties[PROP_WORKSPACE_NAME_PADDING]);
+	xfdashboard_actor_install_stylable_property(actorClass, XfdashboardLiveWorkspaceProperties[PROP_WORKSPACE_NAME_BELOW]);
 
 	/* Define signals */
 	XfdashboardLiveWorkspaceSignals[SIGNAL_CLICKED]=
@@ -1061,6 +1205,7 @@ static void xfdashboard_live_workspace_init(XfdashboardLiveWorkspace *self)
 	priv->monitor=NULL;
 	priv->showWorkspaceName=FALSE;
 	priv->workspaceNamePadding=0.0f;
+	priv->workspaceNameBelow=FALSE;
 
 	/* Set up this actor */
 	clutter_actor_set_reactive(CLUTTER_ACTOR(self), TRUE);
@@ -1074,6 +1219,10 @@ static void xfdashboard_live_workspace_init(XfdashboardLiveWorkspace *self)
 	priv->backgroundImageLayer=xfdashboard_live_window_simple_new();
 	clutter_actor_hide(priv->backgroundImageLayer);
 	clutter_actor_add_child(CLUTTER_ACTOR(self), priv->backgroundImageLayer);
+
+	priv->wallpaperLayer=clutter_actor_new();
+	clutter_actor_hide(priv->wallpaperLayer);
+	clutter_actor_insert_child_below(CLUTTER_ACTOR(self), priv->wallpaperLayer, priv->backgroundImageLayer);
 
 	/* Create title actor */
 	priv->actorTitle=xfdashboard_button_new();
@@ -1281,6 +1430,16 @@ void xfdashboard_live_workspace_set_background_image_type(XfdashboardLiveWorkspa
 				case XFDASHBOARD_STAGE_BACKGROUND_IMAGE_TYPE_DESKTOP:
 					{
 						XfdashboardWindowTrackerWindow	*backgroundWindow;
+						ClutterContent					*wallpaper;
+
+						/* Prefer the wallpaper image (no desktop icons) if available */
+						wallpaper=_xfdashboard_live_workspace_get_wallpaper();
+						if(wallpaper && priv->wallpaperLayer)
+						{
+							clutter_actor_set_content(priv->wallpaperLayer, wallpaper);
+							clutter_actor_show(priv->wallpaperLayer);
+							break;
+						}
 
 						backgroundWindow=xfdashboard_window_tracker_get_root_window(priv->windowTracker);
 						if(backgroundWindow)
@@ -1307,6 +1466,7 @@ void xfdashboard_live_workspace_set_background_image_type(XfdashboardLiveWorkspa
 				default:
 					xfdashboard_live_window_simple_set_window(XFDASHBOARD_LIVE_WINDOW_SIMPLE(priv->backgroundImageLayer), NULL);
 					clutter_actor_hide(priv->backgroundImageLayer);
+					if(priv->wallpaperLayer) clutter_actor_hide(priv->wallpaperLayer);
 					break;
 			}
 		}

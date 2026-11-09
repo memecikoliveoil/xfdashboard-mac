@@ -262,7 +262,10 @@ static void _xfdashboard_dynamic_table_layout_update_layout_data_dynamic(Xfdashb
 		}
 	}
 
-	y+=largestHeight;
+	/* Include row spacing also after last row, so the last row gets the
+	 * same height as the others (children get end coordinate minus spacing)
+	 */
+	y+=largestHeight+priv->rowSpacing;
 	g_array_append_val(priv->rowCoords, y);
 
 	/* Thaw notification */
@@ -371,7 +374,12 @@ static void _xfdashboard_dynamic_table_layout_update_layout_data_fixed(Xfdashboa
 	priv->columnCoords=g_array_new(FALSE, FALSE, sizeof(gfloat));
 	x=0.0f;
 	i=0;
-	fixedWidth=(inWidth>0.0f ? inWidth/priv->columns : 0.0f);
+	/* Columns plus the spacing between them must fit into the width.
+	 * Half of the spacing is kept at the left and right edge too, so the
+	 * outer columns do not stick to the border.
+	 */
+	fixedWidth=(inWidth>0.0f ? floor((inWidth-(priv->columns*priv->columnSpacing))/priv->columns) : 0.0f);
+	x=floor(priv->columnSpacing/2.0f);
 	clutter_actor_iter_init(&iter, CLUTTER_ACTOR(inContainer));
 	while(clutter_actor_iter_next(&iter, &child))
 	{
@@ -424,7 +432,10 @@ static void _xfdashboard_dynamic_table_layout_update_layout_data_fixed(Xfdashboa
 		}
 	}
 
-	y+=largestHeight;
+	/* Include row spacing also after last row, so the last row gets the
+	 * same height as the others (children get end coordinate minus spacing)
+	 */
+	y+=largestHeight+priv->rowSpacing;
 	g_array_append_val(priv->rowCoords, y);
 
 	/* Thaw notification */
@@ -614,7 +625,13 @@ static void _xfdashboard_dynamic_table_layout_allocate(ClutterLayoutManager *sel
 			}
 
 			/* Set allocation at child */
-			clutter_actor_allocate(child, &childAllocation, inFlags);
+			/* Whole pixels only, otherwise text in children gets blurry */
+			clutter_actor_box_clamp_to_pixel(&childAllocation);
+			/* Whole pixels only, otherwise text in children gets blurry.
+			 * Child fills its whole cell so highlights have the same size.
+			 */
+			clutter_actor_box_clamp_to_pixel(&childAllocation);
+			clutter_actor_allocate_align_fill(child, &childAllocation, 0.5, 0.5, TRUE, TRUE, inFlags);
 
 			/* Increase counter for visible children */
 			i++;

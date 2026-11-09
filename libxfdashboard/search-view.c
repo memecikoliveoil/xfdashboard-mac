@@ -1124,14 +1124,26 @@ static gboolean _xfdashboard_search_view_focusable_set_selection(XfdashboardFocu
 		{
 			if(priv->selectionProvider)
 			{
+				/* Only one selected item in whole search view: clear selection
+				 * in the container of the previously selected provider
+				 */
+				if(priv->selectionProvider!=data &&
+					priv->selectionProvider->container &&
+					priv->selectionProvider->container!=data->container)
+				{
+					xfdashboard_search_result_container_set_selection(XFDASHBOARD_SEARCH_RESULT_CONTAINER(priv->selectionProvider->container), NULL);
+				}
 				_xfdashboard_search_view_provider_data_unref(priv->selectionProvider);
 				priv->selectionProvider=NULL;
 			}
 
 			priv->selectionProvider=_xfdashboard_search_view_provider_data_ref(data);
 
-			/* Ensure new selection is visible */
-			xfdashboard_view_child_ensure_visible(XFDASHBOARD_VIEW(self), inSelection);
+			/* Ensure new selection is visible (not when selected by pointer) */
+			if(!g_object_get_data(G_OBJECT(self), "xfdashboard-select-by-pointer"))
+			{
+				xfdashboard_view_child_ensure_visible(XFDASHBOARD_VIEW(self), inSelection);
+			}
 		}
 	}
 

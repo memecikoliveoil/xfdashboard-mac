@@ -43,6 +43,7 @@
 #include <X11/extensions/Xdamage.h>
 #endif
 #include <gdk/gdkx.h>
+#include <X11/Xatom.h>
 
 #include <libxfdashboard/window-content.h>
 #include <libxfdashboard/x11/window-tracker-x11.h>
@@ -54,6 +55,7 @@
 #include <libxfdashboard/settings.h>
 #include <libxfdashboard/enums.h>
 #include <libxfdashboard/debug.h>
+#include <libxfdashboard/outline-effect.h>
 
 
 /* Definitions */
@@ -111,6 +113,16 @@ struct _XfdashboardWindowContentX11Private
 	guint										windowClosedSignalID;
 
 	XfdashboardSettings							*settings;
+
+	/* _GTK_FRAME_EXTENTS of client-side decorated windows (invisible shadow margin) */
+	gint										gtkFrameLeft;
+	gint										gtkFrameRight;
+	gint										gtkFrameTop;
+	gint										gtkFrameBottom;
+
+	/* Rounded corners of live window previews */
+	gfloat										cornerRadius;
+	CoglPipeline								*roundedPipeline;
 };
 
 G_DEFINE_TYPE_WITH_CODE(XfdashboardWindowContentX11,
@@ -133,6 +145,8 @@ enum
 	PROP_OUTLINE_WIDTH,
 
 	PROP_INCLUDE_WINDOW_FRAME,
+
+	PROP_CORNER_RADIUS,
 
 	PROP_UNMAPPED_WINDOW_ICON_X_FILL,
 	PROP_UNMAPPED_WINDOW_ICON_Y_FILL,
@@ -186,6 +200,18 @@ static guint									_xfdashboard_window_content_x11_window_creation_shutdown_si
 /* Forward declarations */
 static void _xfdashboard_window_content_x11_suspend(XfdashboardWindowContentX11 *self);
 static void _xfdashboard_window_content_x11_resume(XfdashboardWindowContentX11 *self);
+static void _xfdashboard_window_content_x11_update_gtk_frame_extents(XfdashboardWindowContentX11 *self);
+static void _xfdashboard_window_content_x11_snapshot(XfdashboardWindowContentX11 *self);
+static void _xfdashboard_window_content_x11_refresh_snapshot(XfdashboardWindowContentX11 *self);
+static void _xfdashboard_window_content_x11_schedule_refresh(XfdashboardWindowContentX11 *self, guint inDelay);
+
+/* All instances: their still images are refreshed periodically while
+ * xfdashboard is hidden, so windows on other workspaces (which are unmapped
+ * there and cannot be captured) still show how they looked when last seen
+ */
+static GList		*_xfdashboard_window_content_x11_instances=NULL;
+static guint		_xfdashboard_window_content_x11_refresh_timer_id=0;
+#define XFDASHBOARD_WINDOW_CONTENT_X11_REFRESH_INTERVAL		5
 static gboolean _xfdashboard_window_content_x11_resume_on_idle(gpointer inUserData);
 
 
@@ -706,9 +732,14 @@ static void _xfdashboard_window_content_x11_handle_x_event(XfdashboardWindowCont
 			case ConfigureNotify:
 				priv->isMapped=TRUE;
 				if(!priv->isAppSuspended) _xfdashboard_window_content_x11_resume(self);
+					else if(inXEvent->type==MapNotify) _xfdashboard_window_content_x11_schedule_refresh(self, 500);
 				break;
 
 			case UnmapNotify:
+				priv->isMapped=FALSE;
+				_xfdashboard_window_content_x11_suspend(self);
+				break;
+
 			case DestroyNotify:
 				priv->isMapped=FALSE;
 				_xfdashboard_window_content_x11_suspend(self);
@@ -875,11 +906,16 @@ static void _xfdashboard_window_content_x11_suspend(XfdashboardWindowContentX11 
 		g_critical("No default X11 display found for suspend");
 	}
 
+	/* Keep a still image of the window as it looks now, so it can still be
+	 * shown when it gets minimized while xfdashboard is hidden (like macOS)
+	 */
+	if(priv->pixmap!=None) _xfdashboard_window_content_x11_snapshot(self);
+
 	/* Release resources */
 	clutter_x11_trap_x_errors();
 	{
 		/* Suspend live updates from texture */
-		if(priv->texture && !priv->isFallback)
+		if(priv->texture && !priv->isFallback && cogl_is_texture_pixmap_x11(priv->texture))
 		{
 #ifdef HAVE_XDAMAGE
 			cogl_texture_pixmap_x11_set_damage_object(COGL_TEXTURE_PIXMAP_X11(priv->texture), 0, 0);
@@ -1079,6 +1115,9 @@ static gboolean _xfdashboard_window_content_x11_resume_on_idle(gpointer inUserDa
 			priv->texture=windowTexture;
 		}
 
+		/* Re-read GTK client-side shadow margin for the new texture */
+		_xfdashboard_window_content_x11_update_gtk_frame_extents(self);
+
 		/* Set damage to new window texture */
 #ifdef HAVE_XDAMAGE
 		if(_xfdashboard_window_content_x11_have_damage_extension &&
@@ -1243,6 +1282,9 @@ static void _xfdashboard_window_content_x11_resume(XfdashboardWindowContentX11 *
 			priv->texture=windowTexture;
 		}
 
+		/* Re-read GTK client-side shadow margin for the new texture */
+		_xfdashboard_window_content_x11_update_gtk_frame_extents(self);
+
 		/* Set damage to new window texture */
 #ifdef HAVE_XDAMAGE
 		if(_xfdashboard_window_content_x11_have_damage_extension &&
@@ -1320,7 +1362,12 @@ static Window _xfdashboard_window_content_x11_get_window_frame_xid(Display *inDi
 	gdkWindow=gdk_x11_window_foreign_new_for_display(gdkDisplay, xWindowID);
 	if(gdkWindow)
 	{
-		if(!gdk_window_get_decorations(gdkWindow, &gdkWindowDecoration) ||
+		/* gdk_window_get_decorations() returns FALSE if the window has no
+		 * _MOTIF_WM_HINTS at all (e.g. xterm). That means "default decorations
+		 * by the window manager", not "no decorations", so only skip if the
+		 * hints explicitly ask for no decorations (client-side decorated windows).
+		 */
+		if(gdk_window_get_decorations(gdkWindow, &gdkWindowDecoration) &&
 			gdkWindowDecoration==0)
 		{
 			XFDASHBOARD_DEBUG(inWindow, WINDOWS,
@@ -1541,7 +1588,251 @@ static void _xfdashboard_window_content_x11_set_window(XfdashboardWindowContentX
 
 /* IMPLEMENTATION: ClutterContent */
 
+/* Read _GTK_FRAME_EXTENTS (left, right, top, bottom) of the client window.
+ * GTK3/4 client-side decorated windows draw their shadow inside the window
+ * and advertise that invisible margin here; we crop it from the preview.
+ */
+static void _xfdashboard_window_content_x11_update_gtk_frame_extents(XfdashboardWindowContentX11 *self)
+{
+	XfdashboardWindowContentX11Private		*priv=self->priv;
+	Display									*display;
+	Atom									atomFrameExtents;
+	Atom									actualType;
+	int										actualFormat;
+	unsigned long							numberItems;
+	unsigned long							bytesRemaining;
+	unsigned char							*data=NULL;
+
+	priv->gtkFrameLeft=priv->gtkFrameRight=priv->gtkFrameTop=priv->gtkFrameBottom=0;
+	if(!priv->window || !priv->texture) return;
+
+	display=xfdashboard_window_tracker_x11_get_display();
+	if(display==None) return;
+
+	atomFrameExtents=XInternAtom(display, "_GTK_FRAME_EXTENTS", False);
+	if(XGetWindowProperty(display,
+							xfdashboard_window_tracker_window_x11_get_xid(priv->window),
+							atomFrameExtents,
+							0, 4,
+							False,
+							XA_CARDINAL,
+							&actualType,
+							&actualFormat,
+							&numberItems,
+							&bytesRemaining,
+							&data)==Success &&
+		data && actualFormat==32 && numberItems==4)
+	{
+		long	*extents=(long*)data;
+		gint	textureWidth=cogl_texture_get_width(priv->texture);
+		gint	textureHeight=cogl_texture_get_height(priv->texture);
+
+		if(extents[0]>=0 && extents[1]>=0 && extents[2]>=0 && extents[3]>=0 &&
+			extents[0]+extents[1]<textureWidth &&
+			extents[2]+extents[3]<textureHeight)
+		{
+			priv->gtkFrameLeft=extents[0];
+			priv->gtkFrameRight=extents[1];
+			priv->gtkFrameTop=extents[2];
+			priv->gtkFrameBottom=extents[3];
+		}
+	}
+
+	if(data) XFree(data);
+}
+
 /* Paint texture */
+/* Copy current window image into an ordinary texture which stays valid after
+ * the window's pixmap is released (window gets unmapped, e.g. minimized)
+ */
+static void _xfdashboard_window_content_x11_snapshot(XfdashboardWindowContentX11 *self)
+{
+	XfdashboardWindowContentX11Private		*priv=self->priv;
+	CoglContext								*context;
+	CoglTexture								*snapshot;
+	CoglOffscreen							*offscreen;
+	CoglFramebuffer							*framebuffer;
+	CoglPipeline							*pipeline;
+	CoglError								*error=NULL;
+	gint									width, height;
+
+	if(!priv->texture || priv->isFallback || !cogl_is_texture_pixmap_x11(priv->texture)) return;
+
+	width=cogl_texture_get_width(priv->texture);
+	height=cogl_texture_get_height(priv->texture);
+	if(width<=0 || height<=0) return;
+
+	/* Copy on the GPU: draw the window texture into a new ordinary texture */
+	context=clutter_backend_get_cogl_context(clutter_get_default_backend());
+	snapshot=COGL_TEXTURE(cogl_texture_2d_new_with_size(context, width, height));
+	if(!snapshot) return;
+
+	offscreen=cogl_offscreen_new_with_texture(snapshot);
+	framebuffer=COGL_FRAMEBUFFER(offscreen);
+	if(!cogl_framebuffer_allocate(framebuffer, &error))
+	{
+		if(error) cogl_error_free(error);
+		cogl_object_unref(offscreen);
+		cogl_object_unref(snapshot);
+		return;
+	}
+
+	cogl_framebuffer_orthographic(framebuffer, 0, 0, width, height, -1, 1);
+	cogl_framebuffer_clear4f(framebuffer, COGL_BUFFER_BIT_COLOR, 0, 0, 0, 0);
+
+	pipeline=cogl_pipeline_new(context);
+	cogl_pipeline_set_layer_texture(pipeline, 0, priv->texture);
+	cogl_pipeline_set_blend(pipeline, "RGBA = ADD(SRC_COLOR, 0)", NULL);
+	cogl_framebuffer_draw_textured_rectangle(framebuffer, pipeline, 0, 0, width, height, 0.0f, 0.0f, 1.0f, 1.0f);
+
+	cogl_object_unref(pipeline);
+	cogl_object_unref(offscreen);
+
+	cogl_object_unref(priv->texture);
+	priv->texture=snapshot;
+	clutter_content_invalidate(CLUTTER_CONTENT(self));
+}
+
+/* Take a new still image of a window while xfdashboard is hidden (suspended):
+ * acquire the window's pixmap for a moment, copy it and release it again.
+ * Only possible while the window is mapped (on the current workspace).
+ */
+static void _xfdashboard_window_content_x11_refresh_snapshot(XfdashboardWindowContentX11 *self)
+{
+	XfdashboardWindowContentX11Private		*priv=self->priv;
+	Display									*display;
+	CoglContext								*context;
+	CoglTexture								*windowTexture, *oldTexture;
+	gboolean								oldIsFallback;
+	Pixmap									pixmap;
+	CoglError								*error=NULL;
+
+	if(!priv->isAppSuspended || !priv->isMapped) return;
+	if(priv->pixmap!=None || priv->xWindowID==None) return;
+	if(priv->workaroundMode!=XFDASHBOARD_WINDOW_CONTENT_X11_WORKAROUND_MODE_NONE) return;
+	if(!_xfdashboard_window_content_x11_have_composite_extension) return;
+
+	display=xfdashboard_window_tracker_x11_get_display();
+	if(!display) return;
+
+#ifdef HAVE_XCOMPOSITE
+	clutter_x11_trap_x_errors();
+	pixmap=XCompositeNameWindowPixmap(display, priv->xWindowID);
+	XSync(display, False);
+	if(clutter_x11_untrap_x_errors()!=0 || pixmap==None) return;
+
+	context=clutter_backend_get_cogl_context(clutter_get_default_backend());
+	windowTexture=COGL_TEXTURE(cogl_texture_pixmap_x11_new(context, pixmap, FALSE, &error));
+	if(!windowTexture || error)
+	{
+		if(error) cogl_error_free(error);
+		if(windowTexture) cogl_object_unref(windowTexture);
+		clutter_x11_trap_x_errors();
+		XFreePixmap(display, pixmap);
+		clutter_x11_untrap_x_errors();
+		return;
+	}
+
+	/* Let snapshot function copy it */
+	oldTexture=priv->texture;
+	oldIsFallback=priv->isFallback;
+	priv->texture=windowTexture;
+	priv->isFallback=FALSE;
+	_xfdashboard_window_content_x11_snapshot(self);
+
+	if(priv->texture==windowTexture)
+	{
+		/* Copy failed: keep what we had */
+		cogl_object_unref(windowTexture);
+		priv->texture=oldTexture;
+		priv->isFallback=oldIsFallback;
+	}
+		else if(oldTexture) cogl_object_unref(oldTexture);
+
+	clutter_x11_trap_x_errors();
+	XFreePixmap(display, pixmap);
+	XSync(display, False);
+	clutter_x11_untrap_x_errors();
+#endif
+}
+
+static gboolean _xfdashboard_window_content_x11_on_refresh_timer(gpointer inUserData)
+{
+	GList		*iter;
+
+	for(iter=_xfdashboard_window_content_x11_instances; iter; iter=g_list_next(iter))
+	{
+		_xfdashboard_window_content_x11_refresh_snapshot(XFDASHBOARD_WINDOW_CONTENT_X11(iter->data));
+	}
+	return(G_SOURCE_CONTINUE);
+}
+
+static gboolean _xfdashboard_window_content_x11_on_scheduled_refresh(gpointer inUserData)
+{
+	XfdashboardWindowContentX11				*self=XFDASHBOARD_WINDOW_CONTENT_X11(inUserData);
+
+	g_object_set_data(G_OBJECT(self), "xfdashboard-refresh-source", NULL);
+	_xfdashboard_window_content_x11_refresh_snapshot(self);
+	return(G_SOURCE_REMOVE);
+}
+
+static void _xfdashboard_window_content_x11_cancel_scheduled_refresh(XfdashboardWindowContentX11 *self)
+{
+	guint		sourceID;
+
+	sourceID=GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(self), "xfdashboard-refresh-source"));
+	if(sourceID) g_source_remove(sourceID);
+	g_object_set_data(G_OBJECT(self), "xfdashboard-refresh-source", NULL);
+}
+
+static void _xfdashboard_window_content_x11_schedule_refresh(XfdashboardWindowContentX11 *self, guint inDelay)
+{
+	guint		sourceID;
+
+	/* Give the application a moment to draw its window after being mapped */
+	_xfdashboard_window_content_x11_cancel_scheduled_refresh(self);
+	sourceID=g_timeout_add(inDelay, _xfdashboard_window_content_x11_on_scheduled_refresh, self);
+	g_object_set_data(G_OBJECT(self), "xfdashboard-refresh-source", GUINT_TO_POINTER(sourceID));
+}
+
+/* Shared pipeline which masks a texture rectangle to a rounded rectangle.
+ * Uniforms: box (texture coordinates of drawn region), size (pixels), radius (pixels)
+ */
+static CoglPipeline		*_xfdashboard_window_content_x11_rounded_base=NULL;
+static int				_xfdashboard_window_content_x11_rounded_box_location=-1;
+static int				_xfdashboard_window_content_x11_rounded_size_location=-1;
+static int				_xfdashboard_window_content_x11_rounded_radius_location=-1;
+
+static CoglPipeline* _xfdashboard_window_content_x11_get_rounded_base(void)
+{
+	if(!_xfdashboard_window_content_x11_rounded_base)
+	{
+		CoglContext		*context;
+		CoglSnippet		*snippet;
+
+		context=clutter_backend_get_cogl_context(clutter_get_default_backend());
+		_xfdashboard_window_content_x11_rounded_base=cogl_pipeline_new(context);
+		cogl_pipeline_set_layer_null_texture(_xfdashboard_window_content_x11_rounded_base, 0, COGL_TEXTURE_TYPE_2D);
+
+		snippet=cogl_snippet_new(COGL_SNIPPET_HOOK_FRAGMENT,
+									"uniform vec4 xfd_box;\n"
+									"uniform vec2 xfd_size;\n"
+									"uniform float xfd_radius;\n",
+									"vec2 xfd_p=(cogl_tex_coord0_in.st-xfd_box.xy)/(xfd_box.zw-xfd_box.xy)*xfd_size;\n"
+									"vec2 xfd_q=abs(xfd_p-xfd_size*0.5)-(xfd_size*0.5-vec2(xfd_radius));\n"
+									"float xfd_d=length(max(xfd_q, vec2(0.0)))-xfd_radius;\n"
+									"cogl_color_out*=clamp(0.5-xfd_d, 0.0, 1.0);\n");
+		cogl_pipeline_add_snippet(_xfdashboard_window_content_x11_rounded_base, snippet);
+		cogl_object_unref(snippet);
+
+		_xfdashboard_window_content_x11_rounded_box_location=cogl_pipeline_get_uniform_location(_xfdashboard_window_content_x11_rounded_base, "xfd_box");
+		_xfdashboard_window_content_x11_rounded_size_location=cogl_pipeline_get_uniform_location(_xfdashboard_window_content_x11_rounded_base, "xfd_size");
+		_xfdashboard_window_content_x11_rounded_radius_location=cogl_pipeline_get_uniform_location(_xfdashboard_window_content_x11_rounded_base, "xfd_radius");
+	}
+
+	return(_xfdashboard_window_content_x11_rounded_base);
+}
+
 static void _xdashboard_window_content_clutter_content_iface_paint_content(ClutterContent *inContent,
 																			ClutterActor *inActor,
 																			ClutterPaintNode *inRootNode)
@@ -1557,6 +1848,7 @@ static void _xdashboard_window_content_clutter_content_iface_paint_content(Clutt
 	guint8									opacity;
 	ClutterColor							outlineColor;
 	ClutterActorBox							outlinePath;
+	gfloat									roundedRadius=-1.0f;
 
 	/* Check if we have a texture to paint */
 	if(priv->texture==NULL) return;
@@ -1578,11 +1870,11 @@ static void _xdashboard_window_content_clutter_content_iface_paint_content(Clutt
 	{
 		ClutterColor					backgroundColor;
 
-		/* Set up background color */
+		/* Set up background color: subtle dark card instead of solid black */
 		backgroundColor.red=0;
 		backgroundColor.green=0;
 		backgroundColor.blue=0;
-		backgroundColor.alpha=opacity;
+		backgroundColor.alpha=(guint8)(opacity*0.30f);
 
 		/* Draw background */
 		node=clutter_color_node_new(&backgroundColor);
@@ -1731,8 +2023,98 @@ static void _xdashboard_window_content_clutter_content_iface_paint_content(Clutt
 		}
 	}
 
+	/* Crop the invisible GTK client-side shadow margin from live windows */
+	if(!priv->isFallback &&
+		(priv->gtkFrameLeft || priv->gtkFrameRight || priv->gtkFrameTop || priv->gtkFrameBottom))
+	{
+		gfloat								textureWidth=cogl_texture_get_width(priv->texture);
+		gfloat								textureHeight=cogl_texture_get_height(priv->texture);
+
+		textureCoordBox.x1=priv->gtkFrameLeft/textureWidth;
+		textureCoordBox.y1=priv->gtkFrameTop/textureHeight;
+		textureCoordBox.x2=1.0f-(priv->gtkFrameRight/textureWidth);
+		textureCoordBox.y2=1.0f-(priv->gtkFrameBottom/textureHeight);
+	}
+
 	/* Set up paint nodes for texture */
-	node=clutter_texture_node_new(priv->texture, &color, minFilter, magFilter);
+	if(!priv->isFallback &&
+		priv->cornerRadius>0.0f &&
+		clutter_feature_available(CLUTTER_FEATURE_SHADERS_GLSL))
+	{
+		gfloat								box[4];
+		gfloat								size[2];
+		gfloat								radius;
+		CoglPipelineFilter					filter;
+
+		if(!priv->roundedPipeline)
+		{
+			priv->roundedPipeline=cogl_pipeline_copy(_xfdashboard_window_content_x11_get_rounded_base());
+		}
+
+		box[0]=textureCoordBox.x1;
+		box[1]=textureCoordBox.y1;
+		box[2]=textureCoordBox.x2;
+		box[3]=textureCoordBox.y2;
+		size[0]=textureAllocationBox.x2-textureAllocationBox.x1;
+		size[1]=textureAllocationBox.y2-textureAllocationBox.y1;
+		/* corner-radius is meant at real window size: scale it down with the
+		 * preview, like the rounded corners of a real window would look when
+		 * the window is shrunk (macOS Mission Control does the same).
+		 */
+		{
+			gfloat							realWidth;
+
+			realWidth=cogl_texture_get_width(priv->texture)*(textureCoordBox.x2-textureCoordBox.x1);
+			radius=priv->cornerRadius;
+			if(realWidth>0.0f && size[0]<realWidth) radius*=size[0]/realWidth;
+		}
+		radius=MIN(radius, MIN(size[0], size[1])/2.0f);
+
+		filter=(minFilter==CLUTTER_SCALING_FILTER_NEAREST ? COGL_PIPELINE_FILTER_NEAREST : COGL_PIPELINE_FILTER_LINEAR);
+		if(minFilter==CLUTTER_SCALING_FILTER_TRILINEAR) filter=COGL_PIPELINE_FILTER_LINEAR_MIPMAP_LINEAR;
+
+		cogl_pipeline_set_layer_texture(priv->roundedPipeline, 0, priv->texture);
+		cogl_pipeline_set_layer_filters(priv->roundedPipeline, 0,
+										filter,
+										magFilter==CLUTTER_SCALING_FILTER_NEAREST ? COGL_PIPELINE_FILTER_NEAREST : COGL_PIPELINE_FILTER_LINEAR);
+		cogl_pipeline_set_color4ub(priv->roundedPipeline, color.red, color.green, color.blue, color.alpha);
+		cogl_pipeline_set_uniform_float(priv->roundedPipeline, _xfdashboard_window_content_x11_rounded_box_location, 4, 1, box);
+		cogl_pipeline_set_uniform_float(priv->roundedPipeline, _xfdashboard_window_content_x11_rounded_size_location, 2, 1, size);
+		cogl_pipeline_set_uniform_1f(priv->roundedPipeline, _xfdashboard_window_content_x11_rounded_radius_location, radius);
+		roundedRadius=radius;
+
+		node=clutter_pipeline_node_new(priv->roundedPipeline);
+	}
+		else
+		{
+			node=clutter_texture_node_new(priv->texture, &color, minFilter, magFilter);
+		}
+	/* Tell the parent (live window) where exactly the preview is drawn and
+	 * how round its corners are, so a selection outline can wrap it tightly
+	 */
+	{
+		ClutterActor					*parent;
+		XfdashboardOutlineInnerShape	*shape;
+		gfloat							ax, ay;
+
+		parent=clutter_actor_get_parent(inActor);
+		if(parent)
+		{
+			shape=g_object_get_data(G_OBJECT(parent), XFDASHBOARD_OUTLINE_EFFECT_INNER_SHAPE_KEY);
+			if(!shape)
+			{
+				shape=g_new0(XfdashboardOutlineInnerShape, 1);
+				g_object_set_data_full(G_OBJECT(parent), XFDASHBOARD_OUTLINE_EFFECT_INNER_SHAPE_KEY, shape, g_free);
+			}
+			clutter_actor_get_position(inActor, &ax, &ay);
+			shape->x=ax+textureAllocationBox.x1;
+			shape->y=ay+textureAllocationBox.y1;
+			shape->width=textureAllocationBox.x2-textureAllocationBox.x1;
+			shape->height=textureAllocationBox.y2-textureAllocationBox.y1;
+			shape->radius=roundedRadius;
+		}
+	}
+
 	clutter_paint_node_set_name(node, G_OBJECT_TYPE_NAME(self));
 	clutter_paint_node_add_texture_rectangle(node,
 												&textureAllocationBox,
@@ -1760,6 +2142,9 @@ static void _xdashboard_window_content_clutter_content_iface_paint_content(Clutt
 			outlineColor.blue=priv->outlineColor->blue;
 			outlineColor.alpha=opacity;
 		}
+
+	/* A square outline does not fit rounded corners and is not needed at width 0 */
+	if(priv->outlineWidth<=0.0f || (!priv->isFallback && priv->cornerRadius>0.0f)) return;
 
 	node=clutter_color_node_new(&outlineColor);
 	clutter_paint_node_set_name(node, "outline-top");
@@ -1815,9 +2200,10 @@ static gboolean _xdashboard_window_content_clutter_content_iface_get_preferred_s
 	}
 		else
 		{
-			/* ... otherwise get size of texture */
-			w=cogl_texture_get_width(priv->texture);
-			h=cogl_texture_get_height(priv->texture);
+			/* ... otherwise get size of texture, without GTK shadow margin */
+			_xfdashboard_window_content_x11_update_gtk_frame_extents(XFDASHBOARD_WINDOW_CONTENT_X11(inContent));
+			w=cogl_texture_get_width(priv->texture)-priv->gtkFrameLeft-priv->gtkFrameRight;
+			h=cogl_texture_get_height(priv->texture)-priv->gtkFrameTop-priv->gtkFrameBottom;
 		}
 
 	/* Set result values */
@@ -1844,6 +2230,9 @@ static void _xfdashboard_window_content_x11_stylable_get_stylable_properties(Xfd
 
 	/* Add stylable properties to hashtable */
 	xfdashboard_stylable_add_stylable_property(self, ioStylableProperties, "include-window-frame");
+	xfdashboard_stylable_add_stylable_property(self, ioStylableProperties, "outline-color");
+	xfdashboard_stylable_add_stylable_property(self, ioStylableProperties, "outline-width");
+	xfdashboard_stylable_add_stylable_property(self, ioStylableProperties, "corner-radius");
 	xfdashboard_stylable_add_stylable_property(self, ioStylableProperties, "unmapped-window-icon-x-fill");
 	xfdashboard_stylable_add_stylable_property(self, ioStylableProperties, "unmapped-window-icon-y-fill");
 	xfdashboard_stylable_add_stylable_property(self, ioStylableProperties, "unmapped-window-icon-x-align");
@@ -1898,6 +2287,20 @@ static void _xfdashboard_window_content_x11_dispose(GObject *inObject)
 	XfdashboardWindowContentX11Private		*priv=self->priv;
 
 	/* Dispose allocated resources */
+	_xfdashboard_window_content_x11_cancel_scheduled_refresh(self);
+	_xfdashboard_window_content_x11_instances=g_list_remove(_xfdashboard_window_content_x11_instances, self);
+	if(!_xfdashboard_window_content_x11_instances && _xfdashboard_window_content_x11_refresh_timer_id)
+	{
+		g_source_remove(_xfdashboard_window_content_x11_refresh_timer_id);
+		_xfdashboard_window_content_x11_refresh_timer_id=0;
+	}
+
+	if(priv->roundedPipeline)
+	{
+		cogl_object_unref(priv->roundedPipeline);
+		priv->roundedPipeline=NULL;
+	}
+
 #ifdef CLUTTER_WINDOWING_X11
 	if(clutter_check_windowing_backend(CLUTTER_WINDOWING_X11))
 	{
@@ -2005,6 +2408,15 @@ static void _xfdashboard_window_content_x11_set_property(GObject *inObject,
 			xfdashboard_window_content_x11_set_outline_width(self, g_value_get_float(inValue));
 			break;
 
+		case PROP_CORNER_RADIUS:
+			if(self->priv->cornerRadius!=g_value_get_float(inValue))
+			{
+				self->priv->cornerRadius=g_value_get_float(inValue);
+				clutter_content_invalidate(CLUTTER_CONTENT(self));
+				g_object_notify_by_pspec(G_OBJECT(self), XfdashboardWindowContentX11Properties[PROP_CORNER_RADIUS]);
+			}
+			break;
+
 		case PROP_INCLUDE_WINDOW_FRAME:
 			xfdashboard_window_content_x11_set_include_window_frame(self, g_value_get_boolean(inValue));
 			break;
@@ -2075,6 +2487,10 @@ static void _xfdashboard_window_content_x11_get_property(GObject *inObject,
 
 		case PROP_OUTLINE_WIDTH:
 			g_value_set_float(outValue, priv->outlineWidth);
+			break;
+
+		case PROP_CORNER_RADIUS:
+			g_value_set_float(outValue, priv->cornerRadius);
 			break;
 
 		case PROP_INCLUDE_WINDOW_FRAME:
@@ -2168,6 +2584,14 @@ void xfdashboard_window_content_x11_class_init(XfdashboardWindowContentX11Class 
 							"Width of line used to draw outline of mapped windows",
 							0.0f, G_MAXFLOAT,
 							1.0f,
+							G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+	XfdashboardWindowContentX11Properties[PROP_CORNER_RADIUS]=
+		g_param_spec_float("corner-radius",
+							"Corner radius",
+							"Radius of rounded corners of mapped windows (0 = square)",
+							0.0f, G_MAXFLOAT,
+							0.0f,
 							G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
 	XfdashboardWindowContentX11Properties[PROP_INCLUDE_WINDOW_FRAME]=
@@ -2266,6 +2690,8 @@ void xfdashboard_window_content_x11_init(XfdashboardWindowContentX11 *self)
 	priv->isFallback=FALSE;
 	priv->outlineColor=clutter_color_copy(CLUTTER_COLOR_Black);
 	priv->outlineWidth=1.0f;
+	priv->cornerRadius=0.0f;
+	priv->roundedPipeline=NULL;
 	priv->isSuspended=TRUE;
 	priv->suspendSignalID=0;
 	priv->isMapped=FALSE;
@@ -2285,6 +2711,14 @@ void xfdashboard_window_content_x11_init(XfdashboardWindowContentX11 *self)
 	priv->suspendAfterResumeOnIdle=FALSE;
 	priv->windowClosedSignalID=0;
 	priv->settings=g_object_ref(xfdashboard_core_get_settings(NULL));
+
+	/* Remember instance for refreshing still images while hidden */
+	_xfdashboard_window_content_x11_instances=g_list_prepend(_xfdashboard_window_content_x11_instances, self);
+	if(!_xfdashboard_window_content_x11_refresh_timer_id)
+	{
+		_xfdashboard_window_content_x11_refresh_timer_id=
+			g_timeout_add_seconds(XFDASHBOARD_WINDOW_CONTENT_X11_REFRESH_INTERVAL, _xfdashboard_window_content_x11_on_refresh_timer, NULL);
+	}
 
 	/* Check extensions (will only be done once) */
 	_xfdashboard_window_content_x11_check_extension();
@@ -2370,6 +2804,14 @@ XfdashboardWindowTrackerWindow* xfdashboard_window_content_x11_get_window(Xfdash
 }
 
 /* Get state of suspension */
+/* Check if a real image of the window is available (not only its icon) */
+gboolean xfdashboard_window_content_x11_has_preview(XfdashboardWindowContentX11 *self)
+{
+	g_return_val_if_fail(XFDASHBOARD_IS_WINDOW_CONTENT_X11(self), FALSE);
+
+	return(self->priv->texture!=NULL && !self->priv->isFallback);
+}
+
 gboolean xfdashboard_window_content_x11_is_suspended(XfdashboardWindowContentX11 *self)
 {
 	g_return_val_if_fail(XFDASHBOARD_IS_WINDOW_CONTENT_X11(self), TRUE);
