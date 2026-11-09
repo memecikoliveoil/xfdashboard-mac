@@ -1,13 +1,13 @@
 #!/bin/sh
-# xfdashboard-blue temasını temel alıp Mission Control'e benzeyen "xfdashboard-mac" teması kurar.
-# - Çalışma alanları sağdan üste, yatay şerit olarak taşınır, isimleri görünür
-# - Ekran karartması büyük ölçüde azaltılır (duvar kağıdı görünür kalır)
-# - Quicklaunch (uygulama çubuğu) soldan alta, yatay dock olarak taşınır
-# - Pencere başlığı sadece fare üstündeyken görünür
-# Sistem temasına dokunmaz; her şey ~/.themes/xfdashboard-mac altına yazılır.
+# Installs "xfdashboard-mac", a Mission Control-like theme based on xfdashboard-blue:
+# - workspaces move from the right to a horizontal strip at the top, with names
+# - the screen is darkened much less (the wallpaper stays visible)
+# - the quicklaunch moves from the left to a horizontal dock at the bottom
+# - window titles only show under the pointer
+# Leaves the system themes alone; everything goes to ~/.themes/xfdashboard-mac(-dark).
 set -e
 
-# Önizleme resimleri bu betiğin yanında duruyor
+# Preview screenshots live next to this script
 # (screenshot-xfdashboard-mac.png, screenshot-xfdashboard-mac-dark.png)
 HERE=$(cd "$(dirname "$0")" && pwd)
 
@@ -18,25 +18,25 @@ for d in /usr/local/share/themes/xfdashboard-blue/xfdashboard-1.0 \
          "$HOME/.local/share/themes/xfdashboard-blue/xfdashboard-1.0"; do
     [ -d "$d" ] && SRC="$d" && break
 done
-[ -n "$SRC" ] || { echo "xfdashboard-blue teması bulunamadı" >&2; exit 1; }
+[ -n "$SRC" ] || { echo "xfdashboard-blue theme not found" >&2; exit 1; }
 
 DST="$HOME/.themes/xfdashboard-mac/xfdashboard-1.0"
 rm -rf "$DST"
 mkdir -p "$DST"
 cp -r "$SRC"/. "$DST"/
 
-# Tema adı
-# (Name[tr]= gibi çevrilmiş satırlar silinmezse ayarlarda yine "xfdashboard-blue" görünür)
+# Theme name
+# (translated lines like Name[tr]= must go, or the settings still show "xfdashboard-blue")
 sed -i '/^Name\[/d; /^Comment\[/d;
         s/^Name=.*/Name=xfdashboard-mac/;
         s/^Comment=.*/Comment=macOS-like Mission Control with a Plank-like dock (light)/;
-        s/^Author=.*/Author=memecikoliveoil/;
+        s/^Author=.*/Author=Vaveylâ (memecikoliveoil)/;
         s/^Screenshot=.*/Screenshot=screenshot-xfdashboard-mac.png/' \
     "$DST/xfdashboard.theme"
 rm -f "$DST"/screenshot-xfdashboard-blue.png
 [ -f "$HERE/screenshot-xfdashboard-mac.png" ] && cp "$HERE/screenshot-xfdashboard-mac.png" "$DST/"
 
-# Yerleşim: üstte çalışma alanı şeridi, altında arama + görünüm seçici, en altta pencereler
+# Layout: workspace strip at the top, windows below, dock at the bottom
 cat > "$DST/xfdashboard.xml" << 'EOF'
 <interface>
 	<object class="XfdashboardStageInterface" id="primary">
@@ -71,8 +71,8 @@ cat > "$DST/xfdashboard.xml" << 'EOF'
 					</object>
 				</layout>
 
-				<!-- Spaces şeridi. Arkasındaki bulanık + hafif açık bant duvar kağıdına
-				     auto_theme.py tarafından işleniyor (BAND=164 piksel). -->
+				<!-- Spaces strip. The blurred, slightly lighter band behind it is part of the
+				     background image (background.png, band height 164 pixels). -->
 				<child>
 					<object class="XfdashboardWorkspaceSelector" id="workspace-selector">
 						<property name="can-focus">true</property>
@@ -83,7 +83,7 @@ cat > "$DST/xfdashboard.xml" << 'EOF'
 					</object>
 				</child>
 
-				<!-- Görünüm seçici yok; arama kutusu aşağıda, şeridin altında yüzen görünmez kutu. -->
+				<!-- No view selector; the search box floats invisibly under the strip (below). -->
 
 				<child>
 					<object class="XfdashboardViewpad" id="viewpad">
@@ -108,7 +108,7 @@ cat > "$DST/xfdashboard.xml" << 'EOF'
 			</object>
 		</child>
 
-		<!-- Sağ üstteki "+" : yeni masaüstü ekler (yamalı xfdashboard'daki add-workspace eylemi) -->
+		<!-- "+" in the top right corner: adds a workspace (add-workspace action of this fork) -->
 		<child>
 			<object class="XfdashboardActionButton" id="add-workspace">
 				<property name="fixed-position-set">true</property>
@@ -159,7 +159,7 @@ cat > "$DST/xfdashboard.xml" << 'EOF'
 			</object>
 		</child>
 
-		<!-- Görünmez arama: yazmaya başlayınca şeridin altında belirir (yazı yokken hiç görünmez) -->
+		<!-- Invisible search: appears under the strip as soon as you type -->
 		<child>
 			<object class="XfdashboardTextBox" id="searchbox">
 				<property name="fixed-position-set">true</property>
@@ -186,7 +186,7 @@ cat > "$DST/xfdashboard.xml" << 'EOF'
 			</object>
 		</child>
 
-		<!-- Hiç pencere yokken ortada çıkan yazı (Mac'teki "Kullanılabilir pencere yok") -->
+		<!-- Text in the middle when there are no windows (macOS: "No Available Windows") -->
 		<child>
 			<object class="XfdashboardButton" id="empty-windows">
 				<property name="fixed-position-set">true</property>
@@ -228,13 +228,13 @@ cat > "$DST/xfdashboard.xml" << 'EOF'
 </interface>
 EOF
 
-# Renk/görünüm: blue temanın stil dosyasının sonuna ekle (sonraki kurallar öncekileri ezer)
+# Colors and looks: appended to blue's style sheet (later rules override earlier ones)
 STYLE=$(sed -n 's/^Style=//p' "$DST/xfdashboard.theme" | cut -d';' -f1)
 cat >> "$DST/$STYLE" << 'EOF'
 
 /* ---- xfdashboard-mac ---- */
 
-/* Karartma: blue temada #000000d0 (yaklaşık %80 siyah). Hafif bir gölge bırak. */
+/* Dimming: blue uses #000000d0 (about 80% black). Keep only a light shade. */
 XfdashboardStageInterface
 {
 	background-color: #00000000;
@@ -249,7 +249,7 @@ XfdashboardWorkspaceSelector
 	outline-width: 0.0;
 }
 
-/* Sağ üstteki "+" : yeni masaüstü ekler */
+/* "+" in the top right corner: adds a workspace */
 #add-workspace
 {
 	button-style: text;
@@ -267,8 +267,8 @@ XfdashboardWorkspaceSelector
 	corner-radius: 8.0;
 }
 
-/* Masaüstü küçük resimleri: çerçevesiz, adı küçük resmin ALTINDA (yamalı
- * xfdashboard'daki workspace-name-below), etkin olanın etrafında mavi çerçeve */
+/* Workspace thumbnails: no frame, name BELOW the thumbnail (workspace-name-below,
+ * this fork), blue outline around the current one */
 XfdashboardLiveWorkspace
 {
 	show-workspace-name: true;
@@ -278,8 +278,8 @@ XfdashboardLiveWorkspace
 	outline-width: 0.0;
 }
 
-/* Etkin masaüstü: küçük resim köşeli olduğu için çerçeve de köşeli, boşluksuz
- * tam dışına sarılır (çizgi kalınlığı = dışa taşma) */
+/* Current workspace: square thumbnail, so a square outline, wrapped tightly around
+ * the outside (outline width = outset) */
 XfdashboardLiveWorkspace:active
 {
 	background-type: outline;
@@ -288,7 +288,7 @@ XfdashboardLiveWorkspace:active
 	outline-outset: 3.0;
 }
 
-/* Masaüstü adı: zeminsiz düz yazı. Rengi gündüz/gece temasında ayrı (dosyanın sonu). */
+/* Workspace name: plain text, no background. Light/dark colors at the end of the file. */
 XfdashboardLiveWorkspace XfdashboardButton.title
 {
 	button-style: text;
@@ -297,19 +297,19 @@ XfdashboardLiveWorkspace XfdashboardButton.title
 	color: #1d1d1fff;
 }
 
-/* Arama kutusu ve görünüm seçici fazla göze batmasın */
+/* Keep the search box and view selector unobtrusive */
 #searchbox, #view-selector
 {
 	background-fill-color: #00000040;
 }
 
 /* Altta yatay dock (quicklaunch) */
-/* Plank temasından (theme-Dark): zemin 25,25,25 ~%73, çizgi 100,100,100 ~%40,
- * ikon 46, ikonlar arası 0.3 x ikon ≈ 14 piksel */
+/* From Plank's theme-Dark: fill 25,25,25 ~73%, line 100,100,100 ~40%,
+ * icon 46, gap between icons 0.3 x icon = 14 pixels */
 #quicklaunch, #quicklaunch:drop-target
 {
-	/* Zemini yamalı xfdashboard kendisi çiziyor (zoom'la birlikte büyüyebilsin diye);
-	 * renk, çizgi ve köşe aşağıdaki değerlerden okunuyor */
+	/* This fork draws the dock's background itself (so it can grow with the zoom);
+	 * color, line and corners are read from the values below */
 	background-type: none;
 	background-fill-color: #191919bb;
 	outline-color: #64646464;
@@ -321,17 +321,17 @@ XfdashboardLiveWorkspace XfdashboardButton.title
 	spacing: 6.0;
 }
 
-/* Docktaki "çalışıyor" noktalarını yamalı xfdashboard kendisi çiziyor (Plank gibi
- * mavi, parlayan, pencere sayısı kadar, dock'un alt kenarına yakın) */
+/* This fork draws the running dots itself (like Plank: blue, glowing,
+ * at the bottom edge of the dock) */
 #quicklaunch XfdashboardApplicationButton.running
 {
 	effects: ;
 }
 
-/* Pencereler boş alanı daha iyi doldursun (Mission Control gibi büyük önizlemeler) */
+/* "No Available Windows" text (macOS-like); the text is set below */
 #empty-windows
 {
-	text: "Kullanılabilir pencere yok";
+	text: "@@EMPTYTEXT@@";
 	button-style: text;
 	font: "Inter Medium 13";
 	color: #ffffffff;
@@ -341,8 +341,8 @@ XfdashboardLiveWorkspace XfdashboardButton.title
 	corner-radius: 9.0;
 }
 
-/* Docktaki uygulama adı (ve diğer ipuçları): Plank gibi yuvarlak köşeli koyu kutu.
- * Dock simgelerinde yamalı xfdashboard bunu simgenin üstüne ortalar. */
+/* App names in the dock (and other tooltips): rounded dark box like Plank.
+ * This fork centers it above the dock icon. */
 #tooltip
 {
 	background-type: fill rounded-corners;
@@ -358,23 +358,23 @@ XfdashboardWindowsView
 {
 	spacing: 22.0;
 	prevent-upscaling: true;
-	/* simge durumundaki pencereler de görünür: küçültülmeden önceki son hali
-	 * (yamalı xfdashboard görüntüsünü saklıyor) */
+	/* minimized windows are shown too, with their last picture before minimizing
+	 * (this fork keeps it) */
 	hide-minimized-windows: false;
 }
 
-/* Uygulamalar görünümü liste yerine ızgara (Launchpad gibi) */
+/* Applications view as a grid instead of a list (like Launchpad) */
 XfdashboardApplicationsView
 {
 	view-mode: icon;
-	/* Launchpad gibi sabit 7 sütun, aralarda bolca boşluk; en uzun ad sütun
-	 * sayısını belirlemesin (yamalı xfdashboard: columns) */
+	/* Like Launchpad: fixed 7 columns, plenty of space; the longest name does
+	 * not decide the number of columns (this fork: columns) */
 	columns: 7;
 	spacing: 32.0;
 	format-title-only: "%s";
 }
 
-/* Adlar tek satır, sığmazsa sonu "…" (Launchpad gibi) */
+/* Names on one line, ending in "…" if too long (like Launchpad) */
 XfdashboardApplicationsView XfdashboardButton.view-mode-icon
 {
 	icon-size: 72.0;
@@ -384,17 +384,16 @@ XfdashboardApplicationsView XfdashboardButton.view-mode-icon
 	spacing: 8.0;
 }
 
-/* Uygulama adları kalın değil, normal (Launchpad gibi); kalın yazı küçük boyda bulanık duruyordu */
+/* App names in regular weight, not bold (like Launchpad); bold looked blurry at small sizes */
 XfdashboardApplicationsView XfdashboardApplicationButton
 {
 	format-title-only: "%s";
 }
 
-/* Uygulamalar ve arama açıkken arkadaki duvar kağıdı Launchpad gibi bulanık ve
- * koyulaşmış haline geçiyor (launchpad-background.png, auto_theme.py üretiyor;
- * yamalı xfdashboard). Ayrı bir panel yok. */
+/* With applications or search open, the wallpaper behind turns blurred and
+ * darker like Launchpad (launchpad-background.png; this fork). No separate panel. */
 
-/* Kaydırma çubuğu görünmesin (Mac'te de yok) */
+/* No scrollbar (none on macOS either) */
 XfdashboardScrollbar
 {
 	slider-color: #ffffff00;
@@ -402,14 +401,14 @@ XfdashboardScrollbar
 	slider-width: 0.0;
 }
 
-/* Uygulamalar/aramada yeşil "çalışıyor" tiki yok */
+/* No green "running" tick in applications/search */
 XfdashboardApplicationsView XfdashboardApplicationButton.running,
 XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardApplicationButton.running
 {
 	effects: ;
 }
 
-/* Arama sonuçları Spotlight gibi: küçük ikon, ad ve altında soluk tek satır açıklama */
+/* Search results like Spotlight: small icon, name, one faint line of description */
 XfdashboardSearchResultContainer
 {
 	background-type: none;
@@ -420,7 +419,7 @@ XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton.result-
 XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton.result-item.view-mode-list
 {
 	format-title-only: "%s";
-	/* CSS okuyucusu tırnakları yuttuğu için öznitelikli span yerine <small> */
+	/* The CSS parser swallows quotes, so <small> instead of a span with attributes */
 	format-title-description: "%s\n<small>%s</small>";
 	icon-size: 36.0;
 	single-line: false;
@@ -439,48 +438,48 @@ XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton.result-
 XfdashboardQuicklaunch
 {
 	normal-icon-size: 46.0;
-	/* Büyütme Plank gibi: simge dock'un üstüne taşar, dock'un boyu değişmez */
+	/* Zoom like Plank: icons grow above the dock, the dock keeps its height */
 	hover-zoom: 1.32;
-	/* Plank gibi noktalar, uygulamalar düğmesinin bandı, ayraçlar, Launchpad
-	 * yeri, klasör/Çöp sağda (yamalı xfdashboard; diğer temalarda kapalı) */
+	/* Plank-like dots, apps button band, dividers, Launchpad position,
+	 * folders/Trash at the end (this fork; off in other themes) */
 	plank-style: true;
 }
 
-/* Pencerelerin etrafında sürekli çerçeve olmasın (temanın 2px gri kutusu) */
+/* No permanent frame around windows (the theme's 2px grey box) */
 XfdashboardLiveWindow
 {
 	background-type: none;
 	outline-width: 0.0;
 }
 
-/* Pencere önizlemesinin kendisi: köşeler yuvarlak, 1px siyah kare çizgi yok.
- * (corner-radius ve stilden outline ayarı yamalı xfdashboard ister) */
+/* The window preview itself: rounded corners, no 1px black square line.
+ * (corner-radius and the outline setting from the style need this fork) */
 XfdashboardWindowContent
 {
-	/* gerçek pencere boyutundaki yarıçap; önizleme küçüldükçe yamalı xfdashboard
-	 * bunu da aynı oranda küçültüyor (Mac'teki gibi) */
+	/* radius at the real window size; this fork scales it down with the
+	 * preview (like macOS) */
 	corner-radius: 12.0;
 	outline-width: 0.0;
 }
 
-/* Fare üstündeyken / seçiliyken: mavi, yuvarlak köşeli kalın çerçeve (Mission Control gibi) */
+/* Under the pointer / selected: thick blue rounded outline (like Mission Control) */
 XfdashboardWindowsView XfdashboardLiveWindow:selected
 {
 	background-type: outline rounded-corners;
 	outline-color: #3d8af7ff;
 	outline-width: 3.0;
-	/* çizgi önizlemenin tam dışına, boşluksuz sarılır; köşe yuvarlaklığını
-	 * yamalı xfdashboard önizlemenin o anki köşesinden hesaplar (iç kenar =
-	 * pencere köşesi, dış kenar = o + çizgi kalınlığı) */
+	/* the line wraps tightly around the preview; this fork derives its corner
+	 * radius from the preview's current corner (inner edge = window corner,
+	 * outer edge = that + line width) */
 	outline-outset: 3.0;
 	corner-radius: 9.0;
 }
 
-/* Başlık sadece fare üstündeyken / seçiliyken.
- * "visibility" ile gizlemek xfdashboard'u çökertiyor, o yüzden başlığı
- * görünmez renklere boyuyoruz: zemin yok, yazı tamamen saydam, ikon yok.
- * Not: xfdashboard'un CSS okuyucusu ":hover .title" yazımında boşluğu yutup
- * bunu ".title:hover" sanıyor; o yüzden alttaki kuralda tip adı açıkça yazılı. */
+/* Title only under the pointer / when selected.
+ * Hiding it with "visibility" crashes xfdashboard, so the title is painted
+ * invisible instead: no background, fully transparent text, no icon.
+ * Note: xfdashboard's CSS parser swallows the space in ":hover .title" and
+ * reads it as ".title:hover"; that's why the rule below names the type. */
 XfdashboardLiveWindow .title
 {
 	button-style: text;
@@ -499,8 +498,8 @@ XfdashboardLiveWindow:selected XfdashboardButton.title
 	color: #ffffffff;
 }
 
-/* Kapatma düğmesi: her pencerede siyah kare yerine, sadece fare üstündeyken
- * yuvarlak gri bir çarpı (Mac'teki gibi) */
+/* Close button: no black square on every window, only a round grey cross
+ * under the pointer (like macOS) */
 XfdashboardLiveWindow XfdashboardButton.close-button
 {
 	icon-name: "@@DST@@/close-none.svg";
@@ -514,8 +513,8 @@ XfdashboardLiveWindow:selected XfdashboardButton.close-button
 	background-type: none;
 }
 
-/* Arama kutusu: yazı yokken tamamen görünmez (zemin, ikon, ipucu yok).
- * Herhangi bir görünümde yazmaya başlayınca hap şeklinde belirir. */
+/* Search box: completely invisible with no text (no background, icon or hint).
+ * Appears as a pill as soon as you type in any view. */
 #searchbox,
 #searchbox.focus
 {
@@ -548,7 +547,7 @@ XfdashboardLiveWindow:selected XfdashboardButton.close-button
 	padding: 1.0;
 }
 
-/* Uygulamalar: üstüne gelince ve seçiliyken aynı sade görünüm (iki farklı vurgu olmasın) */
+/* Applications: the same plain look under the pointer and when selected (one highlight only) */
 XfdashboardApplicationsView XfdashboardButton,
 XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton
 {
@@ -557,8 +556,8 @@ XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton
 	font: "Inter Medium 11";
 }
 
-/* Tek vurgu: seçili öğe. Fare üstüne gelince seçim oraya geçiyor (yamalı
- * xfdashboard), oklarla gezince de seçim hareket ediyor; ayrı bir hover rengi yok */
+/* One highlight: the selected item. The selection follows the pointer (this
+ * fork) and the arrow keys; no separate hover color */
 XfdashboardApplicationsView XfdashboardButton:hover,
 XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton:hover,
 XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton.result-item:hover
@@ -580,13 +579,13 @@ XfdashboardSearchView XfdashboardSearchResultContainer XfdashboardButton.result-
 	corner-radius: 14.0;
 }
 
-/* Dock'ta üstüne gelince zemin yok, Plank gibi ikon büyüyor (animations.xml) */
+/* No background on hover in the dock; the icon grows like Plank */
 #quicklaunch XfdashboardButton:hover
 {
 	background-type: none;
 }
 
-/* Docktaki uygulamalar düğmesi: basılıyken koyu kare yok, diğer ikonlar gibi */
+/* Apps button in the dock: no dark square while pressed, like the other icons */
 #quicklaunch XfdashboardButton:selected,
 XfdashboardQuicklaunch #applications-button:toggled,
 #quicklaunch #applications-button:selected,
@@ -606,7 +605,7 @@ XfdashboardQuicklaunch #applications-button:toggled
 	icon-name: "@@APPSICON@@";
 }
 
-/* ---- Plank'e benzetme ---- */
+/* ---- Plank look ---- */
 #quicklaunch, #quicklaunch:drop-target { outline-width: 0.0; corner-radius: 24.0; }
 XfdashboardQuicklaunch #applications-button:toggled,
 #quicklaunch #applications-button:selected,
@@ -614,7 +613,7 @@ XfdashboardQuicklaunch #applications-button:toggled,
 #quicklaunch #applications-button:toggled:selected { background-type: none; }
 EOF
 
-# Docktaki "çalışıyor" noktası: iki renk (gece açık, gündüz koyu)
+# Running dot emblems (unused by the dock, which draws its own dots): light and dark
 for c in light:f5f5f7 dark:1d1d1f; do
     n=${c%%:*}; col=${c#*:}
     cat > "$DST/running-dot-$n.svg" << SVG
@@ -640,8 +639,8 @@ s=s.replace("</effects>", add+"</effects>")
 open(p,"w").write(s)
 PY
 
-# Animasyonlar: blue temadaki yarım saniyelik doğrusal geçişler yerine kısa ve
-# yumuşak (ease-out) geçişler; görünüm değişirken yarım saniyelik bekleme yok
+# Animations: short, smooth (ease-out) transitions instead of blue's half-second
+# linear ones; no half-second wait when switching views
 python3 - "$DST" << 'PY'
 import sys, os, re
 p=os.path.join(sys.argv[1], "animations.xml")
@@ -699,7 +698,7 @@ trig("window-destroyed", """
 open(p,"w").write(s)
 PY
 
-# Arama kutusundaki büyüteç: koyu kutuda açık, açık kutuda koyu
+# Magnifier in the search box: light on the dark box, dark on the light box
 for c in light:d0d0d4 dark:5a5a60; do
     n=${c%%:*}; col=${c#*:}
     cat > "$DST/search-$n.svg" << SVG
@@ -714,17 +713,24 @@ cat > "$DST/close-none.svg" << 'SVG'
 SVG
 sed -i "s|@@DST@@|$DST|g" "$DST/$STYLE"
 
-# Uygulamalar düğmesi: simge temasında renkli bir Launchpad simgesi varsa onu kullan
+# "No Available Windows" in the system language (Turkish or English)
+case "${LC_ALL:-${LC_MESSAGES:-$LANG}}" in
+    tr*) EMPTYTEXT="Kullanılabilir pencere yok" ;;
+    *)   EMPTYTEXT="No Available Windows" ;;
+esac
+sed -i "s|@@EMPTYTEXT@@|$EMPTYTEXT|g" "$DST/$STYLE"
+
+# Apps button: use a colored Launchpad icon from the icon theme if there is one
 APPSICON=view-app-grid-symbolic
 f=$(find "$HOME/.local/share/icons" "$HOME/.icons" /usr/share/icons /usr/local/share/icons \
         -path '*WhiteSur*' -path '*apps*' -iname 'launchpad.*' 2>/dev/null | head -1)
 [ -n "$f" ] && APPSICON=$(basename "${f%.*}")
-# Kendi Launchpad simgen varsa o kullanılır
+# Your own Launchpad icon wins if present
 [ -f "$HOME/.local/share/icons/launchpad.svg" ] && APPSICON="$HOME/.local/share/icons/launchpad.svg"
 sed -i "s|@@APPSICON@@|$APPSICON|g" "$DST/$STYLE"
-echo "Uygulamalar düğmesi simgesi: $APPSICON"
+echo "Applications button icon: $APPSICON"
 
-# Gece teması (xfdashboard-mac-dark): aynı tema, yazılar beyaz
+# Dark theme (xfdashboard-mac-dark): same theme, white text
 DARK="$HOME/.themes/xfdashboard-mac-dark/xfdashboard-1.0"
 rm -rf "$DARK"
 mkdir -p "$DARK"
@@ -736,7 +742,7 @@ rm -f "$DARK"/screenshot-xfdashboard-mac.png
 [ -f "$HERE/screenshot-xfdashboard-mac-dark.png" ] && cp "$HERE/screenshot-xfdashboard-mac-dark.png" "$DARK/"
 cat >> "$DARK/$STYLE" << 'EOF'
 
-/* ---- gece renkleri ---- */
+/* ---- dark colors ---- */
 XfdashboardLiveWorkspace XfdashboardButton.title { color: #ffffffff; }
 #add-workspace { color: #ffffffc0; }
 #add-workspace:hover { color: #ffffffff; background-fill-color: #ffffff30; }
@@ -745,10 +751,10 @@ XfdashboardLiveWindow:selected XfdashboardButton.title { background-fill-color: 
 
 EOF
 
-# Gündüz teması (xfdashboard-mac): açık şerit, koyu yazılar
+# Light theme (xfdashboard-mac): light strip, dark text
 cat >> "$DST/$STYLE" << 'EOF'
 
-/* ---- gündüz renkleri ---- */
+/* ---- light colors ---- */
 XfdashboardLiveWorkspace XfdashboardButton.title { color: #1d1d1fff; }
 #add-workspace { color: #1d1d1fc0; }
 #add-workspace:hover { color: #1d1d1fff; background-fill-color: #00000018; }
@@ -773,16 +779,16 @@ XfdashboardLiveWindow:selected XfdashboardButton.title { background-fill-color: 
 EOF
 sed -i "s|@@DST@@|$DST|g" "$DST/$STYLE"
 
-# Dock'ta açık bir uygulamaya tıklayınca yenisini açmak yerine açık pencereye geç (Mac/Plank gibi)
+# Clicking a running app in the dock switches to its window instead of opening a new one (like macOS/Plank)
 xfconf-query -c xfdashboard -p /always-launch-new-instance -n -t bool -s false
 
-# Şu anki GTK temasına göre hemen doğru olanı seç (sonrasını auto_theme.py yapıyor)
+# Pick the right one for the current GTK theme now (an automatic day/night switcher can take over later)
 if xfconf-query -c xsettings -p /Net/ThemeName 2>/dev/null | grep -qi dark; then
     xfconf-query -c xfdashboard -p /theme -n -t string -s xfdashboard-mac-dark
 else
     xfconf-query -c xfdashboard -p /theme -n -t string -s xfdashboard-mac
 fi
 
-echo "Kuruldu: $DST ve $DARK"
-echo "auto_theme.py gündüz xfdashboard-mac, gece xfdashboard-mac-dark seçiyor."
-echo "Elle denemek için: xfconf-query -c xfdashboard -p /theme -s xfdashboard-mac-dark; xfdashboard -r"
+echo "Installed: $DST and $DARK"
+echo "Light: xfdashboard-mac, dark: xfdashboard-mac-dark."
+echo "To try one: xfconf-query -c xfdashboard -p /theme -s xfdashboard-mac-dark; xfdashboard -r"
