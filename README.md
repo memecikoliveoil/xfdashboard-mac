@@ -43,10 +43,10 @@ python3 mac/plank-to-xfdashboard.py      # optional: dock items from Plank
 xfdashboard -q; xfdashboard -d &         # run as daemon
 ```
 
-Backgrounds: the themes use images made from your wallpaper (blurred band behind the workspaces, blurred and darkened wallpaper behind the applications view). `mac/wallpaper-backgrounds.py --watch` makes them and remakes them whenever the wallpaper or the light/dark GTK theme changes, and picks `xfdashboard-mac` or `xfdashboard-mac-dark` to match. Start it at login:
+Backgrounds: the themes use images made from your wallpaper (blurred band behind the workspaces, blurred and darkened wallpaper behind the applications view). `mac/wallpaper-backgrounds.py --watch` makes them and remakes them whenever the wallpaper or the light/dark GTK theme changes, and picks `xfdashboard-mac` or `xfdashboard-mac-dark` to match. When nothing changed (for example at login) it does nothing and leaves xfdashboard running; `--force` remakes them anyway. Start it at login:
 
 ```sh
-cp mac/wallpaper-backgrounds.py ~/.local/bin/
+ln -sf "$PWD/mac/wallpaper-backgrounds.py" ~/.local/bin/   # a link, so `git pull` updates it
 printf '[Desktop Entry]\nType=Application\nName=Wallpaper backgrounds\nExec=%s/.local/bin/wallpaper-backgrounds.py --watch\n' "$HOME" \
     > ~/.config/autostart/wallpaper-backgrounds.desktop
 ~/.local/bin/wallpaper-backgrounds.py --watch &
