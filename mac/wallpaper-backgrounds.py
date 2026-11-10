@@ -79,7 +79,9 @@ def generate():
     XFD_DIR.mkdir(parents=True, exist_ok=True)
     screen = XFD_DIR / "workspace-background.png"
     tmp = XFD_DIR / "workspace-background.tmp.png"
-    if run("convert", wp, *fit(base, w, h), str(tmp)).returncode != 0:
+    # Big JPEGs are decoded at about twice the screen size: much faster on old machines
+    if run("convert", "-define", f"jpeg:size={2 * w}x{2 * h}", wp,
+           *fit(base, w, h), str(tmp)).returncode != 0:
         print(f"Could not convert: {wp}", file=sys.stderr)
         return
     os.replace(tmp, screen)  # never leave a half-written file
@@ -94,8 +96,9 @@ def generate():
         xfd_bg.unlink()
     tint = ["-fill", "white", "-colorize", "40%"] if mode == "day" else ["-fill", "black", "-colorize", "25%"]
     run("convert", str(screen),
-        "(", "+clone", "-crop", f"{w}x{BAND}+0+0", "+repage",
-        "-virtual-pixel", "edge", "-blur", "0x20", *tint, ")",
+        "(", "+clone", "-crop", f"{w}x{BAND}+0+0", "+repage", "-virtual-pixel", "edge",
+        # blur at a quarter size and scale back: same look, a fraction of the time
+        "-resize", "25%", "-blur", "0x5", "-resize", f"{w}x{BAND}!", *tint, ")",
         "-gravity", "northwest", "-geometry", "+0+0", "-composite", str(xfd_bg))
 
     # Applications/search: blurred and darkened like Launchpad, same strip on top
@@ -151,7 +154,7 @@ def watch():
     generate()
     while True:
         pending.wait()
-        time.sleep(1.5)       # let the burst finish
+        time.sleep(0.4)       # let the burst finish
         pending.clear()
         generate()
 
