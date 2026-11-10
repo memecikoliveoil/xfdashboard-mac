@@ -43,11 +43,20 @@ python3 mac/plank-to-xfdashboard.py      # optional: dock items from Plank
 xfdashboard -q; xfdashboard -d &         # run as daemon
 ```
 
+Backgrounds: the themes use images made from your wallpaper (blurred band behind the workspaces, blurred and darkened wallpaper behind the applications view). `mac/wallpaper-backgrounds.py --watch` makes them and remakes them whenever the wallpaper or the light/dark GTK theme changes, and picks `xfdashboard-mac` or `xfdashboard-mac-dark` to match. Start it at login:
+
+```sh
+cp mac/wallpaper-backgrounds.py ~/.local/bin/
+printf '[Desktop Entry]\nType=Application\nName=Wallpaper backgrounds\nExec=%s/.local/bin/wallpaper-backgrounds.py --watch\n' "$HOME" \
+    > ~/.config/autostart/wallpaper-backgrounds.desktop
+~/.local/bin/wallpaper-backgrounds.py --watch &
+```
+
+It needs ImageMagick (`convert`). If `~/.config/skippy-xd` exists it also writes `~/.config/skippy-xd/bg.png`, the wallpaper at screen size, for skippy-xd's `background` option.
+
 The themes are built from the stock `xfdashboard-blue` theme, so that one must be installed (it is, with the steps above).
 
 Previews of other workspaces need xfdashboard running as a daemon (`-d`): it keeps the last picture of each window while it is shown.
-
-The mac themes use background images in `~/.config/xfdashboard/` (`background.png`, `workspace-background.png`, `launchpad-background.png`). I generate them from the current wallpaper with my own theme switcher (blurred band behind the workspaces, blurred and darkened wallpaper behind the applications view).
 
 ## License
 
