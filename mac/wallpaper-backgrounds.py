@@ -9,6 +9,7 @@ wallpaper (and skippy-xd's, if ~/.config/skippy-xd exists).
 Works however the wallpaper is changed (Xfce's desktop settings, a script...):
 it watches Xfce's desktop settings. Light or dark comes from the GTK theme's
 name (dark if it contains "Dark"), and picks xfdashboard-mac or -mac-dark."""
+import fcntl
 import os
 import re
 import shutil
@@ -63,6 +64,14 @@ def run(*cmd, **kw):
 
 
 def generate():
+    # One at a time: the watcher and a manual run must not write the same files
+    XFD_DIR.mkdir(parents=True, exist_ok=True)
+    with open(XFD_DIR / ".wallpaper-backgrounds.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        _generate()
+
+
+def _generate():
     wp, base = current_wallpaper()
     if not wp:
         print("No wallpaper found", file=sys.stderr)
@@ -76,9 +85,8 @@ def generate():
 
     # The wallpaper at screen size, scaled like the desktop. Also skippy-xd's
     # background (set "background = ~/.config/skippy-xd/bg.png" in its config)
-    XFD_DIR.mkdir(parents=True, exist_ok=True)
     screen = XFD_DIR / "workspace-background.png"
-    tmp = XFD_DIR / "workspace-background.tmp.png"
+    tmp = XFD_DIR / f"workspace-background.{os.getpid()}.tmp.png"
     # Big JPEGs are decoded at about twice the screen size: much faster on old machines
     if run("convert", "-define", f"jpeg:size={2 * w}x{2 * h}", wp,
            *fit(base, w, h), str(tmp)).returncode != 0:
@@ -86,8 +94,9 @@ def generate():
         return
     os.replace(tmp, screen)  # never leave a half-written file
     if SKIPPY_BG.parent.is_dir():
-        shutil.copyfile(screen, SKIPPY_BG.with_name("bg.tmp.png"))
-        os.replace(SKIPPY_BG.with_name("bg.tmp.png"), SKIPPY_BG)
+        stmp = SKIPPY_BG.with_name(f"bg.{os.getpid()}.tmp.png")
+        shutil.copyfile(screen, stmp)
+        os.replace(stmp, SKIPPY_BG)
 
     # xfdashboard: blurred Spaces strip at the top (frosted light by day, a bit
     # darker by night)
