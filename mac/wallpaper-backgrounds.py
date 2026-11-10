@@ -2,7 +2,7 @@
 """Makes the background images of the xfdashboard-mac themes from the current
 wallpaper (and skippy-xd's, if ~/.config/skippy-xd exists).
 
-  wallpaper-backgrounds.py           make them once
+  wallpaper-backgrounds.py           make them once (--force: even if unchanged)
   wallpaper-backgrounds.py --watch   remake them whenever the wallpaper or the
                                      light/dark GTK theme changes (start it at login)
 
@@ -63,15 +63,15 @@ def run(*cmd, **kw):
                           stderr=subprocess.DEVNULL, **kw)
 
 
-def generate():
+def generate(force=False):
     # One at a time: the watcher and a manual run must not write the same files
     XFD_DIR.mkdir(parents=True, exist_ok=True)
     with open(XFD_DIR / ".wallpaper-backgrounds.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        _generate()
+        _generate(force)
 
 
-def _generate():
+def _generate(force):
     wp, base = current_wallpaper()
     if not wp:
         print("No wallpaper found", file=sys.stderr)
@@ -82,6 +82,17 @@ def _generate():
                   subprocess.run(["xrandr", "--current"], capture_output=True, text=True).stdout)
     if m:
         w, h = int(m.group(1)), int(m.group(2))
+
+    # Nothing to do if the same wallpaper, style, mode and screen size were already
+    # made (e.g. at login, or a theme change that keeps light/dark): no work and no
+    # xfdashboard restart. Also checks that the images are still there.
+    style = q("-c", "xfce4-desktop", "-p", f"{base}/image-style") if base else ""
+    key = f"{wp}|{os.stat(wp).st_mtime_ns}|{style}|{mode}|{w}x{h}|{BAND}\n"
+    state = XFD_DIR / ".wallpaper-backgrounds.state"
+    made = all((XFD_DIR / f"{n}.png").exists() for n in
+               ("workspace-background", "background", "launchpad-background"))
+    if not force and made and state.exists() and state.read_text() == key:
+        return
 
     # All images in one ImageMagick run: the wallpaper is decoded once and every
     # image is made from copies in memory (mpr:). PNGs are written with light
@@ -151,6 +162,7 @@ def _generate():
         time.sleep(0.5)
         subprocess.Popen(["xfdashboard", "-d"], stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
+    state.write_text(key)
     print(f"Backgrounds updated ({'dark' if mode == 'night' else 'light'}): {wp}")
 
 
@@ -177,4 +189,4 @@ def watch():
 
 
 if __name__ == "__main__":
-    watch() if "--watch" in sys.argv else generate()
+    watch() if "--watch" in sys.argv else generate(force="--force" in sys.argv)
