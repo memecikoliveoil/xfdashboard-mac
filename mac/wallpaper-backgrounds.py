@@ -83,48 +83,56 @@ def _generate():
     if m:
         w, h = int(m.group(1)), int(m.group(2))
 
-    # The wallpaper at screen size, scaled like the desktop. Also skippy-xd's
-    # background (set "background = ~/.config/skippy-xd/bg.png" in its config)
-    screen = XFD_DIR / "workspace-background.png"
-    tmp = XFD_DIR / f"workspace-background.{os.getpid()}.tmp.png"
-    # Big JPEGs are decoded at about twice the screen size: much faster on old machines
-    if run("convert", "-define", f"jpeg:size={2 * w}x{2 * h}", wp,
-           *fit(base, w, h), str(tmp)).returncode != 0:
+    # All images in one ImageMagick run: the wallpaper is decoded once and every
+    # image is made from copies in memory (mpr:). PNGs are written with light
+    # compression: they are read locally, so speed matters more than size.
+    #   workspace-background.png  wallpaper at screen size, scaled like the desktop
+    #                             (also skippy-xd's bg.png)
+    #   background.png            the same with a blurred Spaces strip at the top
+    #   launchpad-background.png  blurred, darker, same strip (applications/search)
+    #   stdout                    average brightness of the strip, for its text color
+    pid = os.getpid()
+    out = {name: XFD_DIR / f"{name}.png" for name in
+           ("workspace-background", "background", "launchpad-background")}
+    tmp = {name: XFD_DIR / f"{name}.{pid}.tmp.png" for name in out}
+    for p in out.values():
+        if p.is_symlink():
+            p.unlink()
+    tint = ["-fill", "white", "-colorize", "40%"] if mode == "day" else ["-fill", "black", "-colorize", "25%"]
+    dim = "18%" if mode == "day" else "34%"
+    r = subprocess.run([
+        "convert", "-define", "png:compression-level=1",
+        # big JPEGs are decoded at about twice the screen size: much faster
+        "-define", f"jpeg:size={2 * w}x{2 * h}", wp, *fit(base, w, h), "+repage",
+        "-write", "mpr:screen", "-write", str(tmp["workspace-background"]), "+delete",
+        # strip: blurred at a quarter size and scaled back (same look, far less work)
+        "mpr:screen", "-crop", f"{w}x{BAND}+0+0", "+repage", "-virtual-pixel", "edge",
+        "-resize", "25%", "-blur", "0x5", "-resize", f"{w}x{BAND}!", *tint,
+        "-write", "mpr:band", "+delete",
+        "mpr:screen", "mpr:band", "-gravity", "northwest", "-geometry", "+0+0", "-composite",
+        "-write", str(tmp["background"]), "+delete",
+        # Launchpad: shrink, blur, scale back, a bit more color, darker
+        "mpr:screen", "-resize", "12%", "-blur", "0x6", "-resize", f"{w}x{h}!",
+        "-modulate", "100,125", "-fill", "black", "-colorize", dim,
+        "mpr:band", "-gravity", "northwest", "-geometry", "+0+0", "-composite",
+        "-write", str(tmp["launchpad-background"]), "+delete",
+        # brightness of the strip
+        "mpr:band", "-colorspace", "Gray", "-resize", "1x1!", "-depth", "8", "gray:-",
+    ], capture_output=True, cwd="/tmp")
+    if r.returncode != 0 or not all(t.exists() for t in tmp.values()):
+        for t in tmp.values():
+            t.unlink(missing_ok=True)
         print(f"Could not convert: {wp}", file=sys.stderr)
         return
-    os.replace(tmp, screen)  # never leave a half-written file
+    for name in out:
+        os.replace(tmp[name], out[name])  # never leave a half-written file
     if SKIPPY_BG.parent.is_dir():
-        stmp = SKIPPY_BG.with_name(f"bg.{os.getpid()}.tmp.png")
-        shutil.copyfile(screen, stmp)
+        stmp = SKIPPY_BG.with_name(f"bg.{pid}.tmp.png")
+        shutil.copyfile(out["workspace-background"], stmp)
         os.replace(stmp, SKIPPY_BG)
 
-    # xfdashboard: blurred Spaces strip at the top (frosted light by day, a bit
-    # darker by night)
-    xfd_bg = XFD_DIR / "background.png"
-    if xfd_bg.is_symlink():
-        xfd_bg.unlink()
-    tint = ["-fill", "white", "-colorize", "40%"] if mode == "day" else ["-fill", "black", "-colorize", "25%"]
-    run("convert", str(screen),
-        "(", "+clone", "-crop", f"{w}x{BAND}+0+0", "+repage", "-virtual-pixel", "edge",
-        # blur at a quarter size and scale back: same look, a fraction of the time
-        "-resize", "25%", "-blur", "0x5", "-resize", f"{w}x{BAND}!", *tint, ")",
-        "-gravity", "northwest", "-geometry", "+0+0", "-composite", str(xfd_bg))
-
-    # Applications/search: blurred and darkened like Launchpad, same strip on top
-    dim = "18%" if mode == "day" else "34%"
-    run("convert", str(screen), "-resize", "12%", "-blur", "0x6", "-resize", f"{w}x{h}!",
-        "-modulate", "100,125", "-fill", "black", "-colorize", dim,
-        "(", str(xfd_bg), "-crop", f"{w}x{BAND}+0+0", "+repage", ")",
-        "-gravity", "northwest", "-geometry", "+0+0", "-composite",
-        str(XFD_DIR / "launchpad-background.png"))
-
     # Text on the strip: dark on a light strip, white on a dark one
-    lum = 1.0 if mode == "day" else 0.0
-    r = subprocess.run(["convert", str(xfd_bg), "-crop", f"{w}x{BAND}+0+0", "+repage",
-                        "-colorspace", "Gray", "-resize", "1x1!", "-depth", "8", "gray:-"],
-                       capture_output=True, cwd="/tmp")
-    if r.stdout:
-        lum = r.stdout[0] / 255.0
+    lum = r.stdout[0] / 255.0 if r.stdout else (1.0 if mode == "day" else 0.0)
     ink = "1d1d1f" if lum > 0.55 else "ffffff"
     hover = "00000018" if lum > 0.55 else "ffffff30"
     (XFD_DIR / "themes").mkdir(parents=True, exist_ok=True)
